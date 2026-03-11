@@ -2,6 +2,7 @@ import asyncio
 import random
 import time
 import re
+import json
 from datetime import datetime
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
@@ -50,7 +51,7 @@ def generate_enemy(difficulty_multiplier):
         "hp": int(template["base_hp"] * scale),
         "max_hp": int(template["base_hp"] * scale),
         "dmg": int(template["base_dmg"] * scale),
-        "def": int(5 * scale),  # Добавил защиту врагу
+        "def": int(5 * scale),
         "gold": random.randint(template["gold_min"], template["gold_max"]) * int(scale)
     }
     return enemy
@@ -68,7 +69,6 @@ def simulate_combat(player, enemy):
             dmg_bonus += item.get('stats', {}).get('dmg', 0)
             def_bonus += item.get('stats', {}).get('def', 0)
             
-    # Безопасное получение статов с дефолтными значениями
     p_dmg = player['stats'].get('dmg', 10) + dmg_bonus
     p_def = player['stats'].get('def', 5) + def_bonus
     p_crit = player['stats'].get('crit_chance', 5)
@@ -76,15 +76,14 @@ def simulate_combat(player, enemy):
 
     while p_hp > 0 and e_hp > 0 and turn < 50:
         turn += 1
-        # Ход игрока
         is_crit = random.randint(1, 100) <= p_crit
         dmg_dealt = max(1, (p_dmg * (2 if is_crit else 1)) - enemy.get('def', 0))
         e_hp -= dmg_dealt
-        logs.append(f"⚔️ Вы нанесли {dmg_dealt} урона{' (КРИТ!)' if is_crit else ''}. Враг HP: {max(0, e_hp)}")
+        crit_text = " (КРИТ!)" if is_crit else ""
+        logs.append(f"⚔️ Вы нанесли {dmg_dealt} урона{crit_text}. Враг HP: {max(0, e_hp)}")
         
         if e_hp <= 0: break
 
-        # Ход врага
         is_dodge = random.randint(1, 100) <= p_dodge
         if is_dodge:
             logs.append(f"💨 Вы уклонились от атаки {enemy['name']}!")
@@ -182,7 +181,8 @@ async def profile(call: types.CallbackQuery):
     user = await db.get_user(call.from_user.id)
     stats_text = "\n".join([f"{STAT_NAMES_RU.get(k, k)}: {v}" for k, v in user['stats'].items()])
     equip_text = "\n".join([f"{k}: {v['name']}" for k, v in user['equipped'].items() if v])
-    await call.message.edit_text(f"👤 Профиль\n\n📈 Характеристики:\n{stats_text}\n\n🎒 Экипировка:\n{equip_text if equip_text else 'Пусто'}", reply_markup=main_menu_kb())
+    profile_text = f"👤 Профиль\n\n📈 Характеристики:\n{stats_text}\n\n🎒 Экипировка:\n{equip_text if equip_text else 'Пусто'}"
+    await call.message.edit_text(profile_text, reply_markup=main_menu_kb())
 
 # --- ПРОКАЧКА ---
 
@@ -208,13 +208,12 @@ async def train_stat(call: types.CallbackQuery, state: FSMContext):
     stat_name_ru = STAT_NAMES_RU.get(stat, stat)
     
     if user['gold'] >= cost:
-        # Сохраняем информацию о текущей прокачке для отмены
         await state.update_data(training_stat=stat, training_cost=cost)
         await state.set_state(GameStates.waiting_for_cancel)
         
-        await call.message.edit_text(f"⏳ Прокачка {stat_name_ru} началась!\nСписано {cost} золота.\nВремя: 10 мин.\n\n❌ Нажмите 'Отменить' чтобы прервать.", reply_markup=cancel_kb())
+        train_msg = f"⏳ Прокачка {stat_name_ru} началась!\nСписано {cost} золота.\nВремя: 10 мин.\n\n❌ Нажмите 'Отменить' чтобы прервать."
+        await call.message.edit_text(train_msg, reply_markup=cancel_kb())
         
-        # Запускаем таймер в фоне
         asyncio.create_task(training_timer(call.from_user.id, stat, cost))
     else:
         await call.answer(f"💰 Недостаточно золота! Нужно {cost}", show_alert=True)
@@ -222,12 +221,10 @@ async def train_stat(call: types.CallbackQuery, state: FSMContext):
 async def training_timer(user_id, stat, cost):
     await asyncio.sleep(TRAINING_TIME_SECONDS)
     user = await db.get_user(user_id)
-    # Проверяем не отменил ли игрок
     if user['lock_until'] > int(time.time()) - TRAINING_TIME_SECONDS + 60:
         new_val = user['stats'][stat] + STAT_GROWTH[stat]
         user['stats'][stat] = new_val
         await db.update_user(user_id, stats=user['stats'])
-        # Разблокируем
         await db.update_user(user_id, lock_until=0)
         await dp.storage.set_state(user_id, None)
 
@@ -236,7 +233,6 @@ async def cancel_action(call: types.CallbackQuery):
     user = await db.get_user(call.from_user.id)
     data = await dp.storage.get_data(call.from_user.id)
     
-    # Возвращаем золото если была прокачка
     if 'training_cost' in data:
         await db.update_user(user['user_id'], gold=user['gold'] + data['training_cost'], lock_until=0)
         await call.answer("✅ Прокачка отменена, золото возвращено", show_alert=True)
@@ -257,7 +253,8 @@ async def fight_menu(call: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
     diff = data.get("difficulty", 1)
     
-    await call.message.edit_text(f"⚔️ Арена Боя\n📊 Сложность: {diff}\n\nВыберите действие:", reply_markup=fight_kb(diff))
+    fight_text = f"⚔️ Арена Боя\n📊 Сложность: {diff}\n\nВыберите действие:"
+    await call.message.edit_text(fight_text, reply_markup=fight_kb(diff))
 
 @dp.callback_query(F.data == "fight_diff_up")
 async def fight_diff_up(call: types.CallbackQuery, state: FSMContext):
@@ -278,7 +275,8 @@ async def fight_diff_down(call: types.CallbackQuery, state: FSMContext):
 @dp.callback_query(F.data == "fight_diff_input")
 async def fight_diff_input(call: types.CallbackQuery, state: FSMContext):
     await state.set_state(GameStates.waiting_for_difficulty)
-    await call.message.edit_text("🔢 Введите число сложности (1-100):", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="menu_fight")]]))
+    back_kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="menu_fight")]])
+    await call.message.edit_text("🔢 Введите число сложности (1-100):", reply_markup=back_kb)
 
 @dp.message(GameStates.waiting_for_difficulty)
 async def set_difficulty(message: types.Message, state: FSMContext):
@@ -308,4 +306,211 @@ async def fight_start(call: types.CallbackQuery, state: FSMContext):
     lock_time = int(time.time()) + 30
     await db.update_user(user['user_id'], lock_until=lock_time)
     
-    await call.message.edit_text(f"⚔️ Бой начался!\n👹 Враг: {enemy['name']}
+    fight_start_msg = f"⚔️ Бой начался!\n👹 Враг: {enemy['name']} (HP: {enemy['hp']})\n⏳ Идет симуляция..."
+    await call.message.edit_text(fight_start_msg)
+    
+    await asyncio.sleep(2)
+    
+    win, logs, hp_left = simulate_combat(user, enemy)
+    
+    if win:
+        gold_gain = enemy['gold']
+        await db.update_user(user['user_id'], gold=user['gold'] + gold_gain)
+        user['stats']['hp'] = max(1, hp_left)
+        await db.update_user(user['user_id'], stats=user['stats'])
+        
+        drop_msg = f"🏆 Победа!\n💰 Золото: +{gold_gain}\n"
+        loot_roll = random.randint(1, 100) + user['stats'].get('luck', 0)
+        if loot_roll > 80:
+            item = generate_item(user['stats'].get('rarity', 0))
+            await db.add_item(user['user_id'], item)
+            drop_msg += f"\n🎁 Предмет: {item['name']}"
+        
+        log_text = "\n".join(logs[-5:])
+        result_msg = f"{drop_msg}\n\n📜 Лог боя:\n{log_text}"
+        await call.message.edit_text(result_msg, reply_markup=main_menu_kb())
+    else:
+        death_time = int(time.time()) + DEATH_LOCK_TIME
+        await db.update_user(user['user_id'], death_until=death_time, lock_until=death_time)
+        log_text = "\n".join(logs[-5:])
+        death_msg = f"💀 Вы погибли!\n⏳ Блокировка на 1 час.\n\n📜 Лог боя:\n{log_text}"
+        await call.message.edit_text(death_msg, reply_markup=main_menu_kb())
+
+# --- МЕДИТАЦИЯ ---
+
+@dp.callback_query(F.data == "menu_meditate")
+async def meditate_menu(call: types.CallbackQuery, state: FSMContext):
+    user = await db.get_user(call.from_user.id)
+    lock = check_lock(user)
+    if lock:
+        await call.answer(lock, show_alert=True)
+        return
+    
+    await state.set_state(GameStates.waiting_for_cancel)
+    lock_time = int(time.time()) + MEDITATION_TIME
+    await db.update_user(user['user_id'], lock_until=lock_time)
+    
+    meditate_msg = f"🧘‍♂️ Вы медитируете {MEDITATION_TIME//60} мин.\n✨ Мана восстанавливается...\n\n❌ Нажмите 'Отменить' чтобы прервать."
+    await call.message.edit_text(meditate_msg, reply_markup=cancel_kb())
+
+# --- МАГАЗИН ---
+
+@dp.callback_query(F.data == "menu_shop")
+async def shop_menu(call: types.CallbackQuery):
+    user = await db.get_user(call.from_user.id)
+    now = int(time.time())
+    
+    if now - user['last_shop_refresh'] > SHOP_REFRESH_TIME:
+        new_items = [generate_item(user['stats'].get('rarity', 0)) for _ in range(SHOP_SLOTS_COUNT)]
+        await db.update_user(user['user_id'], shop_items=new_items, last_shop_refresh=now)
+        user['shop_items'] = new_items
+    
+    if not user['shop_items']:
+        await call.answer("📦 Товары закончились", show_alert=True)
+        return
+
+    kb = []
+    for i, item in enumerate(user['shop_items']):
+        price = (item['stats'].get('dmg', 1) + item['stats'].get('def', 1) + item['stats'].get('hp', 0)) * 10
+        kb.append([InlineKeyboardButton(text=f"{item['name']} - {price}💰", callback_data=f"shop_buy_{i}")])
+    kb.append([InlineKeyboardButton(text="🔙 Назад", callback_data="menu_back")])
+    
+    await call.message.edit_text("🏪 Магазин\n🔄 Обновление через 10 мин", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+
+@dp.callback_query(F.data.startswith("shop_buy_"))
+async def shop_buy(call: types.CallbackQuery):
+    user = await db.get_user(call.from_user.id)
+    idx = int(call.data.split("_")[2])
+    
+    if idx >= len(user['shop_items']):
+        await call.answer("❌ Товар недоступен", show_alert=True)
+        return
+        
+    item = user['shop_items'][idx]
+    price = (item['stats'].get('dmg', 1) + item['stats'].get('def', 1) + item['stats'].get('hp', 0)) * 10
+    
+    if user['gold'] >= price:
+        await db.update_user(user['user_id'], gold=user['gold'] - price)
+        await db.add_item(user['user_id'], item)
+        user['shop_items'].pop(idx)
+        await db.update_user(user['user_id'], shop_items=user['shop_items'])
+        await call.answer(f"✅ Куплено: {item['name']}", show_alert=True)
+        await shop_menu(call)
+    else:
+        await call.answer("❌ Недостаточно золота", show_alert=True)
+
+# --- ИНВЕНТАРЬ ---
+
+@dp.callback_query(F.data == "menu_inv")
+async def inv_menu(call: types.CallbackQuery):
+    user = await db.get_user(call.from_user.id)
+    items = await db.get_inventory(user['user_id'])
+    
+    kb = []
+    if len(items) >= user['inventory_slots']:
+        kb.append([InlineKeyboardButton(text="🔒 Слоты полны", callback_data="none")])
+    else:
+        kb.append([InlineKeyboardButton(text=f"➕ Слот ({SLOT_UPGRADE_COST}💰)", callback_data="inv_buy_slot")])
+
+    for db_id, item_json in items[:user['inventory_slots']]:
+        item = json.loads(item_json)
+        kb.append([InlineKeyboardButton(text=f"{item['name']}", callback_data=f"inv_item_{db_id}")])
+    
+    kb.append([InlineKeyboardButton(text="🔙 Назад", callback_data="menu_back")])
+    
+    await call.message.edit_text(f"🎒 Инвентарь ({len(items)}/{user['inventory_slots']})", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+
+@dp.callback_query(F.data == "inv_buy_slot")
+async def inv_buy_slot(call: types.CallbackQuery):
+    user = await db.get_user(call.from_user.id)
+    if user['gold'] >= SLOT_UPGRADE_COST:
+        await db.update_user(user['user_id'], gold=user['gold'] - SLOT_UPGRADE_COST, inventory_slots=user['inventory_slots'] + 1)
+        await call.answer("✅ Слот куплен!", show_alert=True)
+        await inv_menu(call)
+    else:
+        await call.answer("❌ Не хватает золота", show_alert=True)
+
+@dp.callback_query(F.data.startswith("inv_item_"))
+async def inv_item_action(call: types.CallbackQuery):
+    item_id = int(call.data.split("_")[2])
+    user = await db.get_user(call.from_user.id)
+    items = await db.get_inventory(user['user_id'])
+    
+    target = None
+    for db_id, item_json in items:
+        if db_id == item_id:
+            target = json.loads(item_json)
+            break
+            
+    if not target:
+        await call.answer("❌ Предмет не найден", show_alert=True)
+        return
+
+    stats_str = ", ".join([f"{STAT_NAMES_RU.get(k, k)}:{v}" for k,v in target['stats'].items()])
+    kb = [
+        [InlineKeyboardButton(text="📥 Надеть", callback_data=f"inv_equip_{item_id}")],
+        [InlineKeyboardButton(text="⬆️ Улучшить (100💰)", callback_data=f"inv_up_{item_id}")],
+        [InlineKeyboardButton(text="🗑️ Удалить", callback_data=f"inv_del_{item_id}")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_inv")]
+    ]
+    
+    await call.message.edit_text(f"📦 {target['name']}\n{stats_str}", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+
+@dp.callback_query(F.data.startswith("inv_equip_"))
+async def inv_equip(call: types.CallbackQuery):
+    item_id = int(call.data.split("_")[2])
+    user = await db.get_user(call.from_user.id)
+    items = await db.get_inventory(user['user_id'])
+    
+    target = None
+    for db_id, item_json in items:
+        if db_id == item_id:
+            target = json.loads(item_json)
+            break
+            
+    if target:
+        slot = target['type']
+        user['equipped'][slot] = target
+        await db.update_user(user['user_id'], equipped=user['equipped'])
+        await call.answer(f"✅ Надето в слот {slot}", show_alert=True)
+        await inv_menu(call)
+
+@dp.callback_query(F.data.startswith("inv_up_"))
+async def inv_upgrade(call: types.CallbackQuery):
+    item_id = int(call.data.split("_")[2])
+    user = await db.get_user(call.from_user.id)
+    
+    if user['gold'] < 100:
+        await call.answer("💰 Нужно 100 золота", show_alert=True)
+        return
+
+    items = await db.get_inventory(user['user_id'])
+    for db_id, item_json in items:
+        if db_id == item_id:
+            item = json.loads(item_json)
+            for stat in item['stats']:
+                item['stats'][stat] = int(item['stats'][stat] * 1.1)
+            item['level'] = item.get('level', 1) + 1
+            await db.conn.execute("UPDATE inventory SET item_data = ? WHERE id = ?", (json.dumps(item), item_id))
+            await db.conn.commit()
+            break
+
+    await db.update_user(user['user_id'], gold=user['gold'] - 100)
+    await call.answer("✅ Предмет улучшен!", show_alert=True)
+    await inv_item_action(call)
+
+@dp.callback_query(F.data.startswith("inv_del_"))
+async def inv_del(call: types.CallbackQuery):
+    item_id = int(call.data.split("_")[2])
+    await db.delete_item(item_id)
+    await call.answer("🗑️ Предмет удален", show_alert=True)
+    await inv_menu(call)
+
+# --- ЗАПУСК ---
+
+async def main():
+    await db.connect()
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
