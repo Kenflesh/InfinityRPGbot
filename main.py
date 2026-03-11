@@ -4,16 +4,29 @@ import json
 import time
 import random
 import os
-from threading import Thread
+import threading
 
-# Используем переменные окружения для токена
-TOKEN = os.getenv("BOT_TOKEN")
+TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 bot = telebot.TeleBot(TOKEN)
 
 DB_FILE = 'database.json'
+db_lock = threading.Lock()
 
 # ==========================================
-# КОНФИГ БАЛАНСА И ИГРЫ (Арифметическая прогрессия)
+# СЛОВАРЬ ЛОКАЛИЗАЦИИ СТАТОВ
+# ==========================================
+STAT_RU = {
+    "max_hp": "Макс. Здоровье", "hp": "Здоровье", "max_mp": "Макс. Мана", "mp": "Мана",
+    "atk": "Физ. Атака", "def": "Физ. Защита", "m_shield": "Магический Щит",
+    "crit_chance": "Шанс Крита (%)", "evasion": "Уклонение (%)", "atk_spd": "Скор. Атаки",
+    "hp_regen": "Реген Здоровья", "mp_regen": "Реген Маны",
+    "drop_chance": "Множитель Дропа", "drop_rarity": "Удача (Качество)",
+    "lifesteal": "Вампиризм (%)", "armor_pen": "Пробитие Брони",
+    "magic_atk": "Маг. Атака", "magic_res": "Маг. Сопротивление", "thorns": "Шипы (%)"
+}
+
+# ==========================================
+# КОНФИГ БАЛАНСА И ИГРЫ
 # ==========================================
 CONFIG = {
     "time_train": 600,       
@@ -33,17 +46,13 @@ CONFIG = {
     "inv_slot_price_base": 500,
     "inv_slot_price_inc": 500,
 
-    # Расширенный список статов
     "stat_inc": {
         "max_hp": 10, "max_mp": 5, "atk": 2, "def": 1, 
         "m_shield": 1, "crit_chance": 0.5, "evasion": 0.5, 
         "atk_spd": 0.1, "hp_regen": 1, "mp_regen": 0.5,
         "drop_chance": 0.1, "drop_rarity": 0.1,
-        "lifesteal": 0.5,      # % от нанесенного урона возвращается в ХП
-        "armor_pen": 1,        # Игнорирование брони цели
-        "magic_atk": 2,        # Дополнительный урон, игнорирующий обычную броню
-        "magic_res": 1,        # Сопротивление магическому урону
-        "thorns": 0.5          # % полученного урона возвращается врагу
+        "lifesteal": 0.5, "armor_pen": 1, "magic_atk": 2, 
+        "magic_res": 1, "thorns": 0.5
     },
 
     "enemy_base_stats": {
@@ -55,13 +64,12 @@ CONFIG = {
         "magic_atk": 1.5, "magic_res": 0.5
     },
     
-    # Множители редкости (Арифметические)
     "rarity_multipliers": {
-        "common": {"name": "Обычный ⬜️", "mult": 1.0, "weight": 100},
-        "uncommon": {"name": "Необычный 🟩", "mult": 1.5, "weight": 40},
-        "rare": {"name": "Редкий 🟦", "mult": 2.0, "weight": 15},
-        "epic": {"name": "Эпический 🟪", "mult": 3.0, "weight": 5},
-        "legendary": {"name": "Легендарный 🟧", "mult": 5.0, "weight": 1}
+        "common": {"mult": 1.0, "weight": 100},
+        "uncommon": {"mult": 1.5, "weight": 40},
+        "rare": {"mult": 2.0, "weight": 15},
+        "epic": {"mult": 3.0, "weight": 5},
+        "legendary": {"mult": 5.0, "weight": 1}
     }
 }
 
@@ -72,19 +80,24 @@ db = {}
 
 def load_db():
     global db
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, 'r', encoding='utf-8') as f:
-            db = json.load(f)
-    else:
-        db = {"players": {}, "shop": {"assortment": [], "last_update": 0}}
-        save_db()
+    with db_lock:
+        if os.path.exists(DB_FILE):
+            with open(DB_FILE, 'r', encoding='utf-8') as f:
+                db = json.load(f)
+        else:
+            db = {"players": {}, "shop": {"assortment": [], "last_update": 0}}
+            _save_db_unlocked()
 
 def save_db():
+    with db_lock:
+        _save_db_unlocked()
+
+def _save_db_unlocked():
     with open(DB_FILE, 'w', encoding='utf-8') as f:
         json.dump(db, f, ensure_ascii=False, indent=4)
 
 # ==========================================
-# КЛАССЫ И ЛОГИКА
+# КЛАСС ИГРОКА И ЛОГИКА
 # ==========================================
 class Player:
     def __init__(self, uid, name):
@@ -114,71 +127,105 @@ class Player:
         self.state = 'idle'
         self.state_end_time = 0
         self.training_stat = None
-        self.current_enemy = None 
+        self.target_hunt_level = 1
+        self.last_regen_time = time.time()
 
     @classmethod
     def from_dict(cls, data):
         p = cls(data['uid'], data['name'])
-        # Восстановление старых профилей новыми полями
         for k, v in data.items():
             if k == 'stats' or k == 'stat_levels':
                 for stat_key in p.stats.keys():
                     if stat_key not in v:
                         v[stat_key] = 0.0 if 'chance' in stat_key or 'regen' in stat_key or 'steal' in stat_key or 'thorns' in stat_key else 0
             setattr(p, k, v)
+        if not hasattr(p, 'target_hunt_level'): p.target_hunt_level = p.level
+        if not hasattr(p, 'last_regen_time'): p.last_regen_time = time.time()
         return p
 
 def get_player(user_id, name="Hero"):
     uid = str(user_id)
-    if uid not in db['players']:
-        db['players'][uid] = Player(uid, name).__dict__
-        save_db()
-    return Player.from_dict(db['players'][uid])
+    with db_lock:
+        if uid not in db['players']:
+            db['players'][uid] = Player(uid, name).__dict__
+            _save_db_unlocked()
+        data = db['players'][uid]
+    return Player.from_dict(data)
 
 def save_player(player):
-    db['players'][player.uid] = player.__dict__
-    save_db()
+    with db_lock:
+        db['players'][player.uid] = player.__dict__
+        _save_db_unlocked()
 
-def check_state(player):
+def apply_passive_regen(player):
     now = time.time()
-    if player.state != 'idle' and now >= player.state_end_time:
-        if player.state == 'training':
-            stat = player.training_stat
-            player.stats[stat] += CONFIG["stat_inc"].get(stat, 1)
-            player.stat_levels[stat] += 1
-            if stat in ["max_hp", "max_mp"]:
-                player.stats[stat.replace("max_", "")] = player.stats[stat] 
-            bot.send_message(player.uid, f"🏋️‍♂️ Тренировка завершена! Характеристика **{stat}** улучшена.", parse_mode="Markdown")
+    delta = now - player.last_regen_time
+    if delta >= 60:
+        mins = int(delta / 60)
+        t_stats = get_total_stats(player)
         
-        elif player.state == 'dead':
-            player.stats['hp'] = player.stats['max_hp'] 
-            bot.send_message(player.uid, "👼 Вы воскресли и готовы к новым битвам!")
-            
-        elif player.state == 'expedition':
-            gold_found = random.randint(50, 150) + (player.level * 10)
-            player.gold += gold_found
-            msg = f"🧭 Экспедиция завершена!\nВы нашли: 💰 {gold_found} золота."
-            
-            if random.random() < (0.3 * player.stats["drop_chance"]):
-                item = generate_item(player.level, player.stats["drop_rarity"])
-                if len(player.inventory) < player.inv_slots:
-                    player.inventory.append(item)
-                    msg += f"\nТакже вы нашли предмет: 📦 {item['name']}"
-                else:
-                    msg += "\nВы нашли предмет, но в инвентаре нет места!"
-            bot.send_message(player.uid, msg)
-
-        player.state = 'idle'
-        player.training_stat = None
+        player.stats['hp'] = min(t_stats['max_hp'], player.stats['hp'] + (t_stats['hp_regen'] * mins))
+        player.stats['mp'] = min(t_stats['max_mp'], player.stats['mp'] + (t_stats['mp_regen'] * mins))
+        
+        player.last_regen_time = now - (delta % 60)
         save_player(player)
-    return player
+
+# ==========================================
+# ФОНОВЫЙ ПОТОК (ОБРАБОТКА ТАЙМЕРОВ)
+# ==========================================
+def background_worker():
+    while True:
+        time.sleep(10)
+        now = time.time()
+        changed = False
+        with db_lock:
+            for uid, p_data in list(db['players'].items()):
+                player = Player.from_dict(p_data)
+                
+                # Проверка завершения таймеров (только если время вышло)
+                if player.state != 'idle' and now >= player.state_end_time:
+                    if player.state == 'dead':
+                        player.stats['hp'] = player.stats['max_hp']
+                        bot.send_message(uid, "👼 Вы воскресли и готовы к новым битвам!")
+                    
+                    elif player.state == 'training':
+                        stat = player.training_stat
+                        player.stats[stat] += CONFIG["stat_inc"].get(stat, 1)
+                        player.stat_levels[stat] += 1
+                        if stat in ["max_hp", "max_mp"]:
+                            player.stats[stat.replace("max_", "")] = player.stats[stat] 
+                        bot.send_message(uid, f"🏋️‍♂️ Тренировка завершена! Характеристика **{STAT_RU.get(stat, stat)}** улучшена.", parse_mode="Markdown")
+                    
+                    elif player.state == 'expedition':
+                        gold_found = random.randint(50, 150) + (player.level * 10)
+                        player.gold += gold_found
+                        msg = f"🧭 Экспедиция завершена!\nВы нашли: 💰 {gold_found} золота."
+                        
+                        if random.random() < (0.3 * player.stats["drop_chance"]):
+                            item = generate_item(player.level, player.stats["drop_rarity"])
+                            if len(player.inventory) < player.inv_slots:
+                                player.inventory.append(item)
+                                msg += f"\nТакже вы нашли предмет: 📦 {item['name']}"
+                            else:
+                                msg += "\nВы нашли предмет, но в инвентаре нет места!"
+                        bot.send_message(uid, msg)
+
+                    player.state = 'idle'
+                    player.training_stat = None
+                    db['players'][uid] = player.__dict__
+                    changed = True
+                    
+        if changed:
+            save_db()
+
+# Запускаем фоновый поток
+threading.Thread(target=background_worker, daemon=True).start()
 
 # ==========================================
 # ГЕНЕРАТОРЫ И МАГАЗИН
 # ==========================================
 def get_random_rarity(rarity_bonus=1.0):
     weights = [v["weight"] for v in CONFIG["rarity_multipliers"].values()]
-    # Улучшаем веса за счет редкости игрока (уменьшаем вес коммонок)
     weights[0] = max(10, int(weights[0] / rarity_bonus)) 
     keys = list(CONFIG["rarity_multipliers"].keys())
     return random.choices(keys, weights=weights, k=1)[0]
@@ -216,13 +263,13 @@ def generate_item(level, rarity_bonus=1.0):
     
     if i_type == "weapon":
         stat = random.choice(["atk", "magic_atk", "armor_pen"])
-        name = f"{rarity_data['name']} Оружие ур.{level}"
+        name = f"Оружие ур.{level}"
     elif i_type == "armor":
         stat = random.choice(["def", "magic_res", "max_hp"])
-        name = f"{rarity_data['name']} Броня ур.{level}"
+        name = f"Броня ур.{level}"
     else:
         stat = random.choice(["crit_chance", "evasion", "lifesteal", "thorns"])
-        name = f"{rarity_data['name']} Амулет ур.{level}"
+        name = f"Амулет ур.{level}"
         
     return {
         "id": "i_" + str(time.time()).replace(".", "") + str(random.randint(10,99)),
@@ -247,7 +294,7 @@ def generate_ability(level, rarity_bonus=1.0):
     
     return {
         "id": "a_" + str(time.time()).replace(".", "") + str(random.randint(10,99)),
-        "name": f"{rarity_data['name']} {names[a_type]} ур.{level}",
+        "name": f"{names[a_type]} ур.{level}",
         "type": a_type,
         "level": level,
         "rarity": rarity_key,
@@ -260,7 +307,6 @@ def update_shop_if_needed(player_level):
     now = time.time()
     if now - db["shop"]["last_update"] > CONFIG["time_shop_update"]:
         db["shop"]["assortment"] = []
-        # Генерируем 3 предмета и 2 способности для магазина относительно уровня игрока (чуть завышено для интереса)
         shop_lvl = max(1, player_level + random.randint(0, 5))
         for _ in range(3):
             db["shop"]["assortment"].append({"item": generate_item(shop_lvl), "sold": False})
@@ -271,7 +317,7 @@ def update_shop_if_needed(player_level):
         save_db()
 
 # ==========================================
-# БОЕВАЯ СИСТЕМА И АБИЛКИ
+# БОЕВАЯ СИСТЕМА (В РЕАЛЬНОМ ВРЕМЕНИ)
 # ==========================================
 def get_total_stats(player):
     total = player.stats.copy()
@@ -280,21 +326,35 @@ def get_total_stats(player):
             total[item["stat"]] += item["value"]
     return total
 
-def simulate_combat(player, enemy):
+def simulate_combat_realtime(player, enemy):
     p_stats = get_total_stats(player)
     e_stats = enemy.copy()
     
     log = [f"⚔️ **Бой начался!** {player.name} против {enemy['name']} (Ур.{enemy['level']})"]
-    round_num = 1
     
-    while p_stats["hp"] > 0 and e_stats["hp"] > 0 and round_num <= 50:
+    # Кулдаун атаки зависит от скорости: 1.0 / atk_spd = секунды между ударами
+    p_cooldown = 1.0 / max(0.1, p_stats["atk_spd"])
+    e_cooldown = 1.0 / max(0.1, e_stats["atk_spd"])
+    
+    tick = 0.1 # Шаг симуляции 0.1 сек
+    time_elapsed = 0.0
+    max_time = 180.0 # Ограничение боя в 3 минуты реального времени
+    
+    while p_stats["hp"] > 0 and e_stats["hp"] > 0 and time_elapsed < max_time:
         
-        # --- ХОД ИГРОКА ---
-        p_hits = max(1, int(p_stats["atk_spd"]))
-        for _ in range(p_hits):
-            if e_stats["hp"] <= 0: break
+        # Регенерация раз в 1 секунду (равна regen / 60)
+        if abs((time_elapsed % 1.0) - 0.0) < 0.05:
+            p_stats["hp"] = min(p_stats["max_hp"], p_stats["hp"] + p_stats["hp_regen"] / 60.0)
+            p_stats["mp"] = min(p_stats["max_mp"], p_stats["mp"] + p_stats["mp_regen"] / 60.0)
             
-            # Попытка применить способность
+        p_cooldown -= tick
+        e_cooldown -= tick
+        
+        # --- УДАР ИГРОКА ---
+        if p_cooldown <= 0 and p_stats["hp"] > 0:
+            p_cooldown += 1.0 / max(0.1, p_stats["atk_spd"])
+            
+            # Способности
             ability_used = False
             for ab in player.active_abilities:
                 if ab and p_stats["mp"] >= ab["mp_cost"]:
@@ -303,85 +363,74 @@ def simulate_combat(player, enemy):
                     if ab["type"] == "heal":
                         heal_amt = ab["value"]
                         p_stats["hp"] = min(p_stats["max_hp"], p_stats["hp"] + heal_amt)
-                        log.append(f"✨ Вы применили {ab['name']} и исцелили {heal_amt} ХП!")
+                        log.append(f"[{time_elapsed:.1f}с] ✨ {ab['name']}: исцеление +{heal_amt} ХП!")
                     elif ab["type"] == "power_strike":
                         dmg = max(1, ab["value"] + p_stats["atk"] - e_stats["def"])
                         e_stats["hp"] -= dmg
-                        log.append(f"💥 Вы применили {ab['name']}! Урон: {dmg}")
+                        log.append(f"[{time_elapsed:.1f}с] 💥 {ab['name']}: {dmg} урона!")
                     elif ab["type"] == "magic_blast":
                         dmg = max(1, ab["value"] + p_stats["magic_atk"] - e_stats["magic_res"])
                         e_stats["hp"] -= dmg
-                        log.append(f"🔮 Вы применили {ab['name']}! Магический урон: {dmg}")
-                    break # Только 1 способность за удар
+                        log.append(f"[{time_elapsed:.1f}с] 🔮 {ab['name']}: {dmg} маг. урона!")
+                    break 
             
-            if not ability_used:
+            # Обычный удар
+            if not ability_used and e_stats["hp"] > 0:
                 if random.random() * 100 > e_stats["evasion"]:
-                    # Физический урон с учетом пробития
                     eff_def = max(0, e_stats["def"] - p_stats["armor_pen"])
                     dmg = max(0, p_stats["atk"] - eff_def)
-                    
-                    # Магический урон с учетом сопротивления
                     magic_dmg = max(0, p_stats["magic_atk"] - e_stats["magic_res"])
-                    
                     total_dmg = dmg + magic_dmg
-                    
                     if total_dmg <= 0: total_dmg = 1
                     
                     if random.random() * 100 < p_stats["crit_chance"]:
                         total_dmg *= 2
-                        log.append(f"🔥 Крит! Вы наносите {total_dmg} урона.")
+                        log.append(f"[{time_elapsed:.1f}с] 🔥 КРИТ! Вы нанесли {total_dmg:.1f} урона.")
                     else:
-                        log.append(f"🗡 Вы наносите {total_dmg} урона.")
+                        log.append(f"[{time_elapsed:.1f}с] 🗡 Вы нанесли {total_dmg:.1f} урона.")
                         
                     e_stats["hp"] -= total_dmg
                     
-                    # Вампиризм
                     if p_stats["lifesteal"] > 0:
                         ls_heal = total_dmg * (p_stats["lifesteal"] / 100.0)
                         p_stats["hp"] = min(p_stats["max_hp"], p_stats["hp"] + ls_heal)
                 else:
-                    log.append("💨 Враг уклонился!")
+                    log.append(f"[{time_elapsed:.1f}с] 💨 Враг уклонился!")
 
-        # --- ХОД ВРАГА ---
-        if e_stats["hp"] > 0:
-            e_hits = max(1, int(e_stats["atk_spd"]))
-            for _ in range(e_hits):
-                if p_stats["hp"] <= 0: break
-                
-                if random.random() * 100 > p_stats["evasion"]:
-                    # Враги бьют простым + маг уроном
-                    eff_def = p_stats["def"]
-                    dmg = max(0, e_stats["atk"] - eff_def)
-                    magic_dmg = max(0, e_stats["magic_atk"] - p_stats["magic_res"])
-                    total_dmg = dmg + magic_dmg
-                    if total_dmg <= 0: total_dmg = 1
-
-                    # Маг. Щит
-                    if p_stats["m_shield"] > 0:
-                        absorbed = min(total_dmg, p_stats["m_shield"])
-                        p_stats["m_shield"] -= absorbed
-                        total_dmg -= absorbed
-                    
-                    p_stats["hp"] -= total_dmg
-                    log.append(f"🩸 Враг наносит {total_dmg} урона.")
-                    
-                    # Шипы (возврат урона врагу)
-                    if p_stats["thorns"] > 0 and total_dmg > 0:
-                        thorns_dmg = total_dmg * (p_stats["thorns"] / 100.0)
-                        e_stats["hp"] -= thorns_dmg
-                        log.append(f"🌵 Шипы вернули {thorns_dmg:.1f} урона врагу.")
-                else:
-                    log.append("🌀 Вы уклонились!")
+        # --- УДАР ВРАГА ---
+        if e_stats["hp"] > 0 and e_cooldown <= 0:
+            e_cooldown += 1.0 / max(0.1, e_stats["atk_spd"])
             
-        # Регенерация
-        p_stats["hp"] = min(p_stats["max_hp"], p_stats["hp"] + p_stats["hp_regen"])
-        p_stats["mp"] = min(p_stats["max_mp"], p_stats["mp"] + p_stats["mp_regen"])
-        round_num += 1
+            if random.random() * 100 > p_stats["evasion"]:
+                eff_def = p_stats["def"]
+                dmg = max(0, e_stats["atk"] - eff_def)
+                magic_dmg = max(0, e_stats["magic_atk"] - p_stats["magic_res"])
+                total_dmg = dmg + magic_dmg
+                if total_dmg <= 0: total_dmg = 1
+
+                if p_stats["m_shield"] > 0:
+                    absorbed = min(total_dmg, p_stats["m_shield"])
+                    p_stats["m_shield"] -= absorbed
+                    total_dmg -= absorbed
+                
+                p_stats["hp"] -= total_dmg
+                log.append(f"[{time_elapsed:.1f}с] 🩸 Враг нанес {total_dmg:.1f} урона.")
+                
+                if p_stats["thorns"] > 0 and total_dmg > 0:
+                    thorns_dmg = total_dmg * (p_stats["thorns"] / 100.0)
+                    e_stats["hp"] -= thorns_dmg
+                    log.append(f"[{time_elapsed:.1f}с] 🌵 Шипы вернули {thorns_dmg:.1f} урона.")
+            else:
+                log.append(f"[{time_elapsed:.1f}с] 🌀 Вы уклонились!")
+
+        time_elapsed += tick
 
     player.stats["hp"] = max(0, p_stats["hp"]) 
     player.stats["mp"] = max(0, p_stats["mp"])
     
-    if player.stats["hp"] <= 0:
+    if time_elapsed >= max_time:
+        return False, log, "⏳ Время боя вышло! Враг сбежал, а вы истощены."
+    elif player.stats["hp"] <= 0:
         return False, log, "💀 Вы погибли! Восстановление займет 1 час."
     else:
         return True, log, "🏆 Вы победили!"
@@ -424,7 +473,8 @@ def paginate_stats_kbd(player, page=0):
     for stat in stats[start:end]:
         lvl = player.stat_levels[stat]
         cost = CONFIG["train_gold_base"] + (lvl * CONFIG["train_gold_inc"])
-        buttons.append(types.InlineKeyboardButton(f"{stat} (Ур.{lvl}) - 💰 {cost}", callback_data=f"train_{stat}"))
+        stat_name = STAT_RU.get(stat, stat)
+        buttons.append(types.InlineKeyboardButton(f"{stat_name} (Ур.{lvl}) - 💰 {cost}", callback_data=f"train_{stat}"))
     markup.add(*buttons)
     
     nav_buttons = []
@@ -439,6 +489,17 @@ def paginate_stats_kbd(player, page=0):
     markup.add(types.InlineKeyboardButton("🔙 В меню", callback_data="menu_profile"))
     return markup
 
+def hunt_menu_kbd(level):
+    markup = types.InlineKeyboardMarkup(row_width=3)
+    markup.add(
+        types.InlineKeyboardButton("◀️", callback_data="hunt_dec"),
+        types.InlineKeyboardButton(f"Ур. {level}", callback_data="hunt_set"),
+        types.InlineKeyboardButton("▶️", callback_data="hunt_inc")
+    )
+    markup.add(types.InlineKeyboardButton("⚔️ Начать поиск", callback_data="hunt_start"))
+    markup.add(types.InlineKeyboardButton("🔙 Назад", callback_data="menu_profile"))
+    return markup
+
 # ==========================================
 # ОБРАБОТЧИКИ СООБЩЕНИЙ
 # ==========================================
@@ -450,11 +511,37 @@ def start_game(message):
                      f"Добро пожаловать в Endless RPG, {player.name}!\nЭто мир бесконечного развития. Твоя сила ограничивается только твоим временем.",
                      reply_markup=main_menu_kbd())
 
+@bot.message_handler(commands=['relive'])
+def command_relive(message):
+    load_db()
+    player = get_player(message.from_user.id)
+    if player.state == 'dead':
+        player.state = 'idle'
+        player.state_end_time = 0
+        player.stats['hp'] = player.stats['max_hp']
+        save_player(player)
+        bot.send_message(message.chat.id, "✨ Силой магии разработчика вы мгновенно воскресли!", reply_markup=main_menu_kbd())
+    else:
+        bot.send_message(message.chat.id, "Вы и так живы!")
+
+def set_hunt_level_handler(message, uid):
+    try:
+        lvl = int(message.text)
+        if lvl > 0:
+            player = get_player(uid)
+            player.target_hunt_level = lvl
+            save_player(player)
+            bot.send_message(message.chat.id, f"Уровень угрозы установлен на {lvl}.", reply_markup=hunt_menu_kbd(lvl))
+        else:
+            bot.send_message(message.chat.id, "Число должно быть больше нуля.", reply_markup=hunt_menu_kbd(1))
+    except ValueError:
+        bot.send_message(message.chat.id, "Ошибка ввода. Ожидалось число.", reply_markup=hunt_menu_kbd(1))
+
 @bot.callback_query_handler(func=lambda call: True)
 def handle_query(call):
     load_db()
     player = get_player(call.from_user.id)
-    player = check_state(player)
+    apply_passive_regen(player)
     
     if call.data == "cancel_action":
         if player.state in ['training', 'expedition']:
@@ -467,24 +554,28 @@ def handle_query(call):
             bot.answer_callback_query(call.id, "Отменять нечего.")
         return
 
+    # Проверка на занятость/смерть
     if player.state != 'idle':
         time_left = int((player.state_end_time - time.time()) / 60)
-        state_rus = {"dead": "Мертвы", "training": "Тренируетесь", "expedition": "В экспедиции"}[player.state]
-        bot.answer_callback_query(call.id, f"Вы заняты ({state_rus}). Осталось: ~{time_left} мин.", show_alert=True)
+        if player.state == 'dead':
+            bot.answer_callback_query(call.id, f"Вы мертвы. Воскрешение через: ~{time_left} мин.", show_alert=True)
+        else:
+            state_rus = {"training": "Тренируетесь", "expedition": "В экспедиции"}.get(player.state, player.state)
+            bot.answer_callback_query(call.id, f"Вы заняты ({state_rus}). Осталось: ~{time_left} мин.", show_alert=True)
         return
 
     # ================= ПРОФИЛЬ =================
     if call.data == "menu_profile":
         t_stats = get_total_stats(player)
         text = f"👤 **Профиль: {player.name} (Ур.{player.level})**\n💰 Золото: {player.gold}\n\n"
-        text += f"❤️ ХП: {player.stats['hp']:.1f}/{t_stats['max_hp']} (+{t_stats['hp_regen']}/ход)\n"
-        text += f"💧 Мана: {player.stats['mp']:.1f}/{t_stats['max_mp']} (+{t_stats['mp_regen']}/ход)\n"
-        text += f"⚔️ Физ.Атака: {t_stats['atk']} | 🔮 Маг.Атака: {t_stats['magic_atk']}\n"
-        text += f"🛡 Защита: {t_stats['def']} | 💠 Маг.Сопр: {t_stats['magic_res']}\n"
-        text += f"💥 Крит: {t_stats['crit_chance']}% | 💨 Уклон: {t_stats['evasion']}%\n"
-        text += f"🦇 Вампиризм: {t_stats['lifesteal']}% | 🌵 Шипы: {t_stats['thorns']}%\n"
-        text += f"🪓 Пробитие: {t_stats['armor_pen']} | 🛡 Маг.Щит: {t_stats['m_shield']}\n"
-        text += f"⚡️ Скор.Атаки: {t_stats['atk_spd']} | 🍀 Шанс дропа: x{t_stats['drop_chance']}\n"
+        text += f"❤️ {STAT_RU['hp']}: {player.stats['hp']:.1f}/{t_stats['max_hp']} (+{t_stats['hp_regen']}/мин)\n"
+        text += f"💧 {STAT_RU['mp']}: {player.stats['mp']:.1f}/{t_stats['max_mp']} (+{t_stats['mp_regen']}/мин)\n"
+        text += f"⚔️ {STAT_RU['atk']}: {t_stats['atk']} | 🔮 {STAT_RU['magic_atk']}: {t_stats['magic_atk']}\n"
+        text += f"🛡 {STAT_RU['def']}: {t_stats['def']} | 💠 {STAT_RU['magic_res']}: {t_stats['magic_res']}\n"
+        text += f"💥 {STAT_RU['crit_chance']}: {t_stats['crit_chance']}% | 💨 {STAT_RU['evasion']}: {t_stats['evasion']}%\n"
+        text += f"🦇 {STAT_RU['lifesteal']}: {t_stats['lifesteal']}% | 🌵 {STAT_RU['thorns']}: {t_stats['thorns']}%\n"
+        text += f"🪓 {STAT_RU['armor_pen']}: {t_stats['armor_pen']} | 🛡 {STAT_RU['m_shield']}: {t_stats['m_shield']}\n"
+        text += f"⚡️ {STAT_RU['atk_spd']}: {t_stats['atk_spd']} | 🍀 {STAT_RU['drop_chance']}: x{t_stats['drop_chance']}\n"
         
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=main_menu_kbd())
 
@@ -502,47 +593,41 @@ def handle_query(call):
             player.training_stat = stat
             player.state_end_time = time.time() + CONFIG["time_train"]
             save_player(player)
-            bot.edit_message_text(f"Вы начали тренировку **{stat}**. Вернитесь через 10 минут.", call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=cancel_action_kbd())
+            bot.edit_message_text(f"Вы начали тренировку **{STAT_RU.get(stat, stat)}**. Вернитесь через 10 минут.", call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=cancel_action_kbd())
         else:
             bot.answer_callback_query(call.id, "Недостаточно золота!", show_alert=True)
 
     # ================= ОХОТА =================
     elif call.data == "menu_hunt":
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("Равный враг (Обычный)", callback_data=f"search_enemy_{max(1, player.level)}"))
-        markup.add(types.InlineKeyboardButton("Слабый враг (Легко)", callback_data=f"search_enemy_{max(1, player.level-5)}"))
-        markup.add(types.InlineKeyboardButton("Сильный враг (Опасно)", callback_data=f"search_enemy_{player.level+5}"))
-        markup.add(types.InlineKeyboardButton("🔙 Назад", callback_data="menu_profile"))
-        bot.edit_message_text("Где будем искать врагов?", call.message.chat.id, call.message.message_id, reply_markup=markup)
+        bot.edit_message_text("⚔️ Установите уровень угрозы для поиска врагов:", call.message.chat.id, call.message.message_id, reply_markup=hunt_menu_kbd(player.target_hunt_level))
 
-    elif call.data.startswith("search_enemy_"):
-        e_lvl = int(call.data.split("_")[2])
-        enemy = generate_enemy(e_lvl)
-        player.current_enemy = enemy
+    elif call.data == "hunt_dec":
+        if player.target_hunt_level > 1:
+            player.target_hunt_level -= 1
+            save_player(player)
+            bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=hunt_menu_kbd(player.target_hunt_level))
+        else:
+            bot.answer_callback_query(call.id, "Минимальный уровень: 1")
+
+    elif call.data == "hunt_inc":
+        player.target_hunt_level += 1
         save_player(player)
-        
-        text = f"👾 **Враг найден!**\nИмя: {enemy['name']} (Ур.{enemy['level']})\n❤️ ХП: {enemy['hp']}\n⚔️ Физ: {enemy['atk']} | 🔮 Маг: {enemy['magic_atk']}\n🛡 Физ.Защ: {enemy['def']} | 💠 Маг.Защ: {enemy['magic_res']}\n\nВступить в бой?"
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("⚔️ В БОЙ", callback_data="start_fight"))
-        markup.add(types.InlineKeyboardButton("🏃‍♂️ Сбежать", callback_data="menu_hunt"))
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
+        bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=hunt_menu_kbd(player.target_hunt_level))
 
-    elif call.data == "start_fight":
-        if not player.current_enemy:
-            bot.answer_callback_query(call.id, "Враг потерян.")
-            return
-            
-        enemy = player.current_enemy
-        player.current_enemy = None
+    elif call.data == "hunt_set":
+        msg = bot.send_message(call.message.chat.id, "Отправьте числом желаемый уровень угрозы:")
+        bot.register_next_step_handler(msg, set_hunt_level_handler, player.uid)
+
+    elif call.data == "hunt_start":
+        enemy = generate_enemy(player.target_hunt_level)
         
-        is_win, log, result_msg = simulate_combat(player, enemy)
+        is_win, log, result_msg = simulate_combat_realtime(player, enemy)
         
         if is_win:
             gold_drop = int((10 + enemy["level"] * 5) * player.stats["drop_chance"])
             player.gold += gold_drop
             result_msg += f"\nВы получили: 💰 {gold_drop} золота."
             
-            # Дроп предметов и скиллов
             if random.random() < (0.2 * player.stats["drop_chance"]):
                 if len(player.inventory) < player.inv_slots:
                     item = generate_item(enemy["level"], player.stats["drop_rarity"])
@@ -551,13 +636,13 @@ def handle_query(call):
                 else:
                     result_msg += "\n📦 Предмет выпал, но инвентарь полон!"
                     
-            if random.random() < (0.05 * player.stats["drop_chance"]): # 5% шанс на скилл
+            if random.random() < (0.05 * player.stats["drop_chance"]):
                 skill = generate_ability(enemy["level"], player.stats["drop_rarity"])
                 player.abilities.append(skill)
                 result_msg += f"\n✨ Изучен навык: {skill['name']}!"
                     
             player.level += 1 
-        else:
+        elif "погибли" in result_msg:
             player.state = 'dead'
             player.state_end_time = time.time() + CONFIG["time_death"]
             
@@ -571,25 +656,49 @@ def handle_query(call):
 
     # ================= ИНВЕНТАРЬ =================
     elif call.data == "menu_inv":
-        text = f"🎒 **Инвентарь ({len(player.inventory)}/{player.inv_slots})**\n\nЭкипировано:\n"
-        for slot, item in player.equip.items():
-            text += f"{slot.capitalize()}: {item['name'] if item else 'Пусто'}\n"
-            
+        text = f"🎒 **Инвентарь ({len(player.inventory)}/{player.inv_slots})**\n\n"
         markup = types.InlineKeyboardMarkup()
-        for i, item in enumerate(player.inventory):
-            markup.add(types.InlineKeyboardButton(f"{item['name']} ({item['stat']}+{item['value']})", callback_data=f"item_{i}"))
-        markup.add(types.InlineKeyboardButton("🔙 Назад", callback_data="menu_profile"))
         
+        # Экипированные предметы
+        for slot, item in player.equip.items():
+            slot_ru = {"weapon": "Оружие", "armor": "Броня", "accessory": "Амулет"}[slot]
+            if item:
+                stat_ru = STAT_RU.get(item['stat'], item['stat'])
+                markup.add(types.InlineKeyboardButton(f"[{slot_ru}] {item['name']} | Снять", callback_data=f"unequip_{slot}"))
+            else:
+                text += f"[{slot_ru}]: Пусто\n"
+                
+        text += "\nВ сумке:\n"
+        for i, item in enumerate(player.inventory):
+            stat_ru = STAT_RU.get(item['stat'], item['stat'])
+            markup.add(types.InlineKeyboardButton(f"{item['name']} (+{item['value']} {stat_ru})", callback_data=f"item_{i}"))
+            
+        markup.add(types.InlineKeyboardButton("🔙 Назад", callback_data="menu_profile"))
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
+
+    elif call.data.startswith("unequip_"):
+        slot = call.data.split("_")[1]
+        item = player.equip[slot]
+        if item:
+            if len(player.inventory) < player.inv_slots:
+                player.inventory.append(item)
+                player.equip[slot] = None
+                save_player(player)
+                bot.answer_callback_query(call.id, f"Предмет снят!")
+                call.data = "menu_inv"
+                handle_query(call)
+            else:
+                bot.answer_callback_query(call.id, "В инвентаре нет места!", show_alert=True)
 
     elif call.data.startswith("item_"):
         idx = int(call.data.split("_")[1])
         if idx >= len(player.inventory):
-            bot.answer_callback_query(call.id, "Предмет не найден.")
             return
             
         item = player.inventory[idx]
-        text = f"📦 **{item['name']}**\nТип: {item['type']}\nРедкость: {CONFIG['rarity_multipliers'][item['rarity']]['name']}\nДает: {item['stat']} +{item['value']}\nУровень: {item['level']}"
+        stat_ru = STAT_RU.get(item['stat'], item['stat'])
+        type_ru = {"weapon": "Оружие", "armor": "Броня", "accessory": "Амулет"}[item['type']]
+        text = f"📦 **{item['name']}**\nТип: {type_ru}\nУлучшает: {stat_ru} +{item['value']}\nУровень предмета: {item['level']}"
         
         upg_cost = CONFIG["upgrade_item_base"] + (item['level'] * CONFIG["upgrade_item_inc"])
         
@@ -621,7 +730,6 @@ def handle_query(call):
         if player.gold >= upg_cost:
             player.gold -= upg_cost
             item['level'] += 1
-            # Арифметический прирост зависит от редкости
             inc = 5 * CONFIG["rarity_multipliers"][item['rarity']]["mult"]
             item['value'] += int(inc) 
             save_player(player)
@@ -641,9 +749,9 @@ def handle_query(call):
         call.data = "menu_inv"
         handle_query(call)
 
-    # ================= НАВЫКИ (СКИЛЛЫ) =================
+    # ================= НАВЫКИ =================
     elif call.data == "menu_skills":
-        text = f"✨ **Ваши Навыки**\n\nАктивные (будут применяться в бою):\n"
+        text = f"✨ **Ваши Навыки**\n\nАктивные:\n"
         for i, ab in enumerate(player.active_abilities):
             text += f"Слот {i+1}: {ab['name'] if ab else 'Пусто'} (МП: {ab['mp_cost'] if ab else 0})\n"
             
@@ -664,11 +772,11 @@ def handle_query(call):
 
     elif call.data.startswith("skill_"):
         idx = int(call.data.split("_")[1])
-        if idx >= len(player.abilities):
-            return
+        if idx >= len(player.abilities): return
             
         ab = player.abilities[idx]
-        text = f"✨ **{ab['name']}**\nТип: {ab['type']}\nСила: {ab['value']}\nСтоимость МП: {ab['mp_cost']}\nУровень: {ab['level']}"
+        type_ru = {"heal": "Исцеление", "power_strike": "Физ. Урон", "magic_blast": "Маг. Урон"}[ab['type']]
+        text = f"✨ **{ab['name']}**\nТип: {type_ru}\nСила: {ab['value']}\nСтоимость МП: {ab['mp_cost']}\nУровень: {ab['level']}"
         
         upg_cost = CONFIG["upgrade_ability_base"] + (ab['level'] * CONFIG["upgrade_ability_inc"])
         
@@ -700,7 +808,6 @@ def handle_query(call):
             ab['level'] += 1
             inc = 5 * CONFIG["rarity_multipliers"][ab['rarity']]["mult"]
             ab['value'] += int(inc)
-            # При прокачке мана-кост не растет, это бонус уровня!
             save_player(player)
             bot.answer_callback_query(call.id, "Навык улучшен!")
             call.data = f"skill_{idx}"
@@ -724,7 +831,6 @@ def handle_query(call):
     # ================= МАГАЗИН =================
     elif call.data == "menu_shop":
         update_shop_if_needed(player.level)
-        
         cost_slot = CONFIG["inv_slot_price_base"] + ( (player.inv_slots - 10) * CONFIG["inv_slot_price_inc"] )
         
         text = "🏪 **Магазин (обновляется каждые 10 мин)**\nАссортимент:\n"
@@ -734,7 +840,8 @@ def handle_query(call):
             if entry["sold"]: continue
             if "item" in entry:
                 it = entry["item"]
-                markup.add(types.InlineKeyboardButton(f"📦 {it['name']} (+{it['value']} {it['stat']}) - 💰 {it['price']}", callback_data=f"buy_assort_{i}"))
+                stat_ru = STAT_RU.get(it['stat'], it['stat'])
+                markup.add(types.InlineKeyboardButton(f"📦 {it['name']} (+{it['value']} {stat_ru}) - 💰 {it['price']}", callback_data=f"buy_assort_{i}"))
             elif "ability" in entry:
                 ab = entry["ability"]
                 markup.add(types.InlineKeyboardButton(f"✨ {ab['name']} - 💰 {ab['price']}", callback_data=f"buy_assort_{i}"))
@@ -765,7 +872,7 @@ def handle_query(call):
                 else:
                     bot.answer_callback_query(call.id, "Инвентарь полон!", show_alert=True)
                     return
-            else: # ability
+            else:
                 player.gold -= obj["price"]
                 player.abilities.append(obj)
                 entry["sold"] = True
@@ -792,10 +899,12 @@ def handle_query(call):
     elif call.data == "buy_heal":
         if player.gold >= 50:
             player.gold -= 50
-            player.stats['hp'] = player.stats['max_hp']
-            player.stats['mp'] = player.stats['max_mp']
+            player.stats['hp'] = get_total_stats(player)['max_hp']
+            player.stats['mp'] = get_total_stats(player)['max_mp']
             save_player(player)
             bot.answer_callback_query(call.id, "Здоровье и мана восстановлены!")
+            call.data = "menu_shop"
+            handle_query(call)
         else:
             bot.answer_callback_query(call.id, "Недостаточно золота!", show_alert=True)
 
