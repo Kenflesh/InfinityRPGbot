@@ -44,11 +44,17 @@ class Database:
                 await self.create_user(user_id)
                 return await self.get_user(user_id)
             
-            # Парсинг данных
+            # Парсинг данных с полной инициализацией статов
+            stats = json.loads(row[2]) if row[2] else {}
+            # ВАЖНО: Добавляем отсутствующие статы из BASE_STATS
+            for key, value in BASE_STATS.items():
+                if key not in stats:
+                    stats[key] = value
+            
             return {
                 "user_id": row[0],
                 "gold": row[1],
-                "stats": json.loads(row[2]) if row[2] else BASE_STATS.copy(),
+                "stats": stats,
                 "inventory_slots": row[3],
                 "lock_until": row[4],
                 "death_until": row[5],
@@ -59,8 +65,9 @@ class Database:
             }
 
     async def create_user(self, user_id):
-        await self.conn.execute("INSERT INTO users (user_id, stats) VALUES (?, ?)", 
-                                (user_id, json.dumps(BASE_STATS)))
+        # Даем стартовое золото для тестов
+        await self.conn.execute("INSERT INTO users (user_id, stats, gold) VALUES (?, ?, ?)", 
+                                (user_id, json.dumps(BASE_STATS), 500))
         await self.conn.commit()
 
     async def update_user(self, user_id, **kwargs):

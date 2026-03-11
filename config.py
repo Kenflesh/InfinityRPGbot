@@ -4,45 +4,54 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- ТЕХНИЧЕСКИЕ ---
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "ВСТАВЬ_СЮДА_ТОКЕН_ОТ_BOTFATHER")
 DB_NAME = "rpg_game.db"
 
-# --- БАЛАНС ИГРЫ (АЛГЕБРАИЧЕСКАЯ ПРОГРЕССИЯ) ---
-# Формула цены прокачки: BASE + (LEVEL * STEP)
-# Это гарантирует, что цена растет линейно, а не взрывообразно.
+# --- БАЛАНС ИГРЫ ---
 TRAINING_BASE_COST = 100
 TRAINING_COST_STEP = 50
 TRAINING_TIME_SECONDS = 600  # 10 минут
 
-# Бой
-DEATH_LOCK_TIME = 3600  # 1 час блокировки при смерти
-COMBAT_LOG_LIMIT = 10   # Сколько ходов показывать в логе
+DEATH_LOCK_TIME = 3600  # 1 час
+COMBAT_LOG_LIMIT = 10
 
-# Магазин
 SHOP_REFRESH_TIME = 600  # 10 минут
 SHOP_SLOTS_COUNT = 5
 
-# Инвентарь
 BASE_INVENTORY_SLOTS = 10
 SLOT_UPGRADE_COST = 500
 
-# Характеристики (Базовые значения для игрока)
+# Характеристики с русскими названиями
 BASE_STATS = {
     "hp": 100,
     "mana": 50,
     "dmg": 10,
     "def": 5,
-    "crit_chance": 5,      # %
-    "dodge_chance": 5,     # %
-    "atk_speed": 1.0,      # Множитель скорости
+    "crit_chance": 5,
+    "dodge_chance": 5,
+    "atk_speed": 1.0,
     "hp_regen": 1,
     "mana_regen": 1,
     "magic_shield": 0,
-    "luck": 0,             # Влияет на дроп
-    "rarity": 0            # Влияет на качество предметов
+    "luck": 0,
+    "rarity": 0
 }
 
-# Коэффициенты роста статов за уровень прокачки
+STAT_NAMES_RU = {
+    "hp": "Здоровье",
+    "mana": "Мана",
+    "dmg": "Урон",
+    "def": "Защита",
+    "crit_chance": "Шанс крита",
+    "dodge_chance": "Уклонение",
+    "atk_speed": "Скорость атаки",
+    "hp_regen": "Реген HP",
+    "mana_regen": "Реген MP",
+    "magic_shield": "Маг. щит",
+    "luck": "Удача",
+    "rarity": "Редкость"
+}
+
 STAT_GROWTH = {
     "hp": 10,
     "mana": 5,
@@ -58,7 +67,6 @@ STAT_GROWTH = {
     "rarity": 0.1
 }
 
-# Враги (Шаблоны)
 ENEMIES = [
     {"name": "Слизень", "base_hp": 50, "base_dmg": 5, "gold_min": 10, "gold_max": 20},
     {"name": "Гоблин", "base_hp": 100, "base_dmg": 10, "gold_min": 20, "gold_max": 40},
@@ -66,6 +74,13 @@ ENEMIES = [
     {"name": "Дракон", "base_hp": 1000, "base_dmg": 100, "gold_min": 200, "gold_max": 500},
 ]
 
-# Доп. активности
-MEDITATION_TIME = 300 # 5 минут
+MEDITATION_TIME = 300
 MEDITATION_MANA_BONUS = 20
+
+# Качество предметов на русском
+ITEM_QUALITY_RU = {
+    "Обычное": 1,
+    "Редкое": 2,
+    "Эпическое": 3,
+    "Легендарное": 5
+}
