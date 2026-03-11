@@ -1,8 +1,8 @@
-import os
 import asyncio
 import random
 import time
 import logging
+import os
 from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Optional, Union
 from datetime import datetime, timedelta
@@ -52,13 +52,13 @@ class Stats:
     mp: float = 50.0
     max_mp: float = 50.0
     mp_regen: float = 0.5
-    magic_shield: float = 0.0  # Поглощает урон за счет маны
+    magic_shield: float = 0.0
     armor: float = 5.0
     damage: float = 10.0
-    attack_speed: float = 1.0  # Атак в секунду
+    attack_speed: float = 1.0
     crit_chance: float = 0.05
     dodge_chance: float = 0.05
-    luck: float = 1.0  # Влияет на дроп
+    luck: float = 1.0
     rarity_find: float = 1.0
 
 @dataclass
@@ -67,6 +67,7 @@ class Item:
     name: str
     type: str  # 'weapon', 'armor', 'accessory'
     stats_bonus: Dict[str, float]
+    price: float = 0
     level: int = 1
 
 @dataclass
@@ -75,7 +76,7 @@ class Ability:
     name: str
     mana_cost: float
     power: float
-    effect_type: str  # 'damage', 'heal', 'shield'
+    effect_type: str
     level: int = 1
 
 @dataclass
@@ -98,32 +99,58 @@ class Player:
     last_regen_tick: float = field(default_factory=time.time)
 
 # ==========================================
-# 3. ИГРОВАЯ ЛОГИКА И СИМУЛЯЦИЯ
+# 3. ИГРОВАЯ ЛОГИКА
 # ==========================================
 
 class GameEngine:
     def __init__(self):
         self.players: Dict[int, Player] = {}
-        self.shop_items: List[Item] = []
-        self.last_shop_refresh = 0
+        self.shop_items: Dict[int, List[Item]] = {} # Магазин индивидуален или по времени
+        self.last_shop_refresh: Dict[int, float] = {}
 
     def get_player(self, user_id: int, name: str = "Герой") -> Player:
         if user_id not in self.players:
             self.players[user_id] = Player(user_id=user_id, name=name)
         return self.players[user_id]
 
+    def get_effective_stats(self, player: Player) -> Stats:
+        """Возвращает статы с учетом надетого снаряжения."""
+        base = asdict(player.stats)
+        for slot, item in player.equipped.items():
+            if item:
+                for stat, bonus in item.stats_bonus.items():
+                    if stat in base:
+                        base[stat] += bonus
+        return Stats(**base)
+
     def process_regen(self, player: Player):
         now = time.time()
+        effective = self.get_effective_stats(player)
         ticks = int((now - player.last_regen_tick) / Config.REGEN_TICK_TIME)
         if ticks > 0:
-            player.stats.hp = min(player.stats.max_hp, player.stats.hp + player.stats.hp_regen * ticks)
-            player.stats.mp = min(player.stats.max_mp, player.stats.mp + player.stats.mp_regen * ticks)
+            player.stats.hp = min(effective.max_hp, player.stats.hp + effective.hp_regen * ticks)
+            player.stats.mp = min(effective.max_mp, player.stats.mp + effective.mp_regen * ticks)
             player.last_regen_tick = now
 
+    def generate_shop(self, player: Player):
+        items = []
+        types = [("Меч", "weapon", "damage"), ("Щит", "armor", "armor"), ("Кольцо", "accessory", "crit_chance")]
+        for i in range(3):
+            name, itype, stat = random.choice(types)
+            bonus_val = 5 + (player.level * 2) if stat != "crit_chance" else 0.02 + (player.level * 0.005)
+            price = 100 + (player.level * 40)
+            items.append(Item(
+                id=f"item_{random.randint(1000, 9999)}",
+                name=f"{name} {random.choice(['Новичка', 'Героя', 'Мастера'])}",
+                type=itype,
+                stats_bonus={stat: bonus_val},
+                price=price,
+                level=player.level
+            ))
+        return items
+
     def generate_enemy(self, player_level: int, difficulty_offset: int = 0):
-        # Сложность зависит от желания игрока (offset)
         level = max(1, player_level + difficulty_offset)
-        # Алгебраический скейлинг врага
         hp = 50 + (level * 20)
         damage = 5 + (level * 3)
         return {
@@ -140,51 +167,46 @@ class GameEngine:
 
     def simulate_battle(self, player: Player, enemy: dict) -> list:
         log = []
+        eff = self.get_effective_stats(player)
         p_hp = player.stats.hp
         p_mp = player.stats.mp
         e_hp = enemy["hp"]
         
-        # Тиковая система боя (каждые 0.1 сек)
         t = 0
         p_next_atk = 0
         e_next_atk = 0
         
-        while p_hp > 0 and e_hp > 0 and t < 1000: # лимит 100 сек
+        while p_hp > 0 and e_hp > 0 and t < 1000:
             t += 1
             current_time = t / 10
             
-            # Атака игрока
             if current_time >= p_next_atk:
-                # Шанс крита
-                dmg = player.stats.damage
-                if random.random() < player.stats.crit_chance:
+                dmg = eff.damage
+                if random.random() < eff.crit_chance:
                     dmg *= Config.CRIT_MULTIPLIER
                     log.append(f"⚔️ Критический удар по {enemy['name']}!")
                 
-                # Учет брони врага
                 actual_dmg = max(1, dmg - enemy["armor"] * 0.2)
                 e_hp -= actual_dmg
-                p_next_atk = current_time + (1 / player.stats.attack_speed)
-                log.append(f"👤 Вы ударили {enemy['name']} на {actual_dmg:.1f}. (Осталось {max(0, e_hp):.1f})")
+                p_next_atk = current_time + (1 / eff.attack_speed)
+                log.append(f"👤 Удар по {enemy['name']}: {actual_dmg:.1f}. (Ост. {max(0, e_hp):.1f})")
 
             if e_hp <= 0: break
 
-            # Атака врага
             if current_time >= e_next_atk:
-                if random.random() > player.stats.dodge_chance:
+                if random.random() > eff.dodge_chance:
                     e_dmg = enemy["damage"]
-                    # Магический щит (поглощение)
-                    if player.stats.magic_shield > 0 and p_mp > 5:
+                    if eff.magic_shield > 0 and p_mp > 5:
                         shield_absorb = min(e_dmg * 0.5, p_mp)
                         p_mp -= shield_absorb
                         e_dmg -= shield_absorb
                         log.append(f"🔮 Щит поглотил {shield_absorb:.1f} урона.")
                     
-                    actual_e_dmg = max(1, e_dmg - player.stats.armor * 0.2)
+                    actual_e_dmg = max(1, e_dmg - eff.armor * 0.2)
                     p_hp -= actual_e_dmg
                     log.append(f"👹 {enemy['name']} ударил вас на {actual_e_dmg:.1f}. (Ваше ХП: {max(0, p_hp):.1f})")
                 else:
-                    log.append(f"💨 Вы уклонились от атаки!")
+                    log.append(f"💨 Вы уклонились!")
                 e_next_atk = current_time + (1 / enemy["attack_speed"])
 
         player.stats.hp = p_hp
@@ -201,9 +223,8 @@ engine = GameEngine()
 
 def get_main_kb(player: Player):
     builder = InlineKeyboardBuilder()
-    
-    # Проверка состояний
     now = time.time()
+    
     if player.state == "upgrading" and now < player.state_end_time:
         rem = int(player.state_end_time - now)
         builder.row(InlineKeyboardButton(text=f"⏳ Прокачка ({rem}с)", callback_data="status"))
@@ -212,7 +233,7 @@ def get_main_kb(player: Player):
     
     if player.state == "dead" and now < player.state_end_time:
         rem = int((player.state_end_time - now) // 60)
-        builder.row(InlineKeyboardButton(text=f"💀 Воскрешение через {rem}м", callback_data="status"))
+        builder.row(InlineKeyboardButton(text=f"💀 Оживление через {rem}м", callback_data="status"))
         return builder.as_markup()
 
     builder.row(InlineKeyboardButton(text="⚔️ Искать врага", callback_data="find_enemy"))
@@ -225,49 +246,123 @@ def get_main_kb(player: Player):
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     player = engine.get_player(message.from_user.id, message.from_user.full_name)
-    await message.answer(f"Приветствуем в бесконечной RPG, {player.name}!\nВаша цель - стать богом этого мира.", 
-                         reply_markup=get_main_kb(player))
+    await message.answer(f"Приветствуем в бесконечной RPG, {player.name}!", reply_markup=get_main_kb(player))
+
+@dp.callback_query(F.data == "status")
+async def status_check(callback: types.CallbackQuery):
+    await callback.answer("Выполняется действие. Ждите завершения таймера.")
 
 @dp.callback_query(F.data == "stats")
 async def show_stats(callback: types.CallbackQuery):
     p = engine.get_player(callback.from_user.id)
     engine.process_regen(p)
+    eff = engine.get_effective_stats(p)
     text = (
         f"📊 **Статистика {p.name}**\n"
-        f"❤️ HP: {p.stats.hp:.1f}/{p.stats.max_hp:.1f} (+{p.stats.hp_regen}/мин)\n"
-        f"💧 MP: {p.stats.mp:.1f}/{p.stats.max_mp:.1f} (+{p.stats.mp_regen}/мин)\n"
-        f"🛡 Броня: {p.stats.armor} | ✨ Маг. Щит: {p.stats.magic_shield}\n"
-        f"⚔️ Урон: {p.stats.damage} | ⚡️ Скорость: {p.stats.attack_speed}/с\n"
-        f"🎯 Крит: {p.stats.crit_chance*100:.1f}% | 💨 Уклон: {p.stats.dodge_chance*100:.1f}%\n"
+        f"❤️ HP: {p.stats.hp:.1f}/{eff.max_hp:.1f} (+{eff.hp_regen}/мин)\n"
+        f"💧 MP: {p.stats.mp:.1f}/{eff.max_mp:.1f} (+{eff.mp_regen}/мин)\n"
+        f"🛡 Броня: {eff.armor} | ✨ Щит: {eff.magic_shield}\n"
+        f"⚔️ Урон: {eff.damage} | ⚡️ Скорость: {eff.attack_speed}/с\n"
+        f"🎯 Крит: {eff.crit_chance*100:.1f}% | 💨 Уклон: {eff.dodge_chance*100:.1f}%\n"
         f"💰 Золото: {p.gold:.1f}"
     )
     await callback.message.edit_text(text, reply_markup=get_main_kb(p))
+
+@dp.callback_query(F.data == "shop")
+async def show_shop(callback: types.CallbackQuery):
+    p = engine.get_player(callback.from_user.id)
+    now = time.time()
+    
+    if p.user_id not in engine.last_shop_refresh or now - engine.last_shop_refresh[p.user_id] > Config.SHOP_REFRESH_TIME:
+        engine.shop_items[p.user_id] = engine.generate_shop(p)
+        engine.last_shop_refresh[p.user_id] = now
+        
+    builder = InlineKeyboardBuilder()
+    for idx, item in enumerate(engine.shop_items[p.user_id]):
+        builder.row(InlineKeyboardButton(text=f"{item.name} - {item.price}💰", callback_data=f"buy_{idx}"))
+    
+    builder.row(InlineKeyboardButton(text="🔙 Назад", callback_data="stats"))
+    await callback.message.edit_text("🛒 **Магазин**\nОбновление каждые 10 минут.", reply_markup=builder.as_markup())
+
+@dp.callback_query(F.data.startswith("buy_"))
+async def buy_item(callback: types.CallbackQuery):
+    p = engine.get_player(callback.from_user.id)
+    idx = int(callback.data.split("_")[1])
+    item = engine.shop_items[p.user_id][idx]
+    
+    if p.gold < item.price:
+        return await callback.answer("Недостаточно золота!")
+    if len(p.inventory) >= p.inventory_slots:
+        return await callback.answer("Инвентарь полон!")
+    
+    p.gold -= item.price
+    p.inventory.append(item)
+    engine.shop_items[p.user_id].pop(idx)
+    await callback.answer(f"Куплено: {item.name}")
+    await show_shop(callback)
+
+@dp.callback_query(F.data == "inventory")
+async def show_inventory(callback: types.CallbackQuery):
+    p = engine.get_player(callback.from_user.id)
+    builder = InlineKeyboardBuilder()
+    
+    for idx, item in enumerate(p.inventory):
+        builder.row(InlineKeyboardButton(text=f"📦 {item.name}", callback_data=f"invitem_{idx}"))
+    
+    builder.row(InlineKeyboardButton(text="🔙 Назад", callback_data="stats"))
+    text = f"🎒 **Инвентарь** ({len(p.inventory)}/{p.inventory_slots})\n"
+    for slot, item in p.equipped.items():
+        name = item.name if item else "Пусто"
+        text += f"🔹 {slot.capitalize()}: {name}\n"
+        
+    await callback.message.edit_text(text, reply_markup=builder.as_markup())
+
+@dp.callback_query(F.data.startswith("invitem_"))
+async def item_action(callback: types.CallbackQuery):
+    p = engine.get_player(callback.from_user.id)
+    idx = int(callback.data.split("_")[1])
+    item = p.inventory[idx]
+    
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="✅ Надеть", callback_data=f"equip_{idx}"))
+    builder.row(InlineKeyboardButton(text="🗑 Продать (50%)", callback_data=f"sell_{idx}"))
+    builder.row(InlineKeyboardButton(text="🔙 Назад", callback_data="inventory"))
+    
+    bonuses = ", ".join([f"{k}: +{v}" for k, v in item.stats_bonus.items()])
+    await callback.message.edit_text(f"📦 **{item.name}**\nБонусы: {bonuses}", reply_markup=builder.as_markup())
+
+@dp.callback_query(F.data.startswith("equip_"))
+async def equip_item(callback: types.CallbackQuery):
+    p = engine.get_player(callback.from_user.id)
+    idx = int(callback.data.split("_")[1])
+    item = p.inventory.pop(idx)
+    
+    old_item = p.equipped[item.type]
+    if old_item:
+        p.inventory.append(old_item)
+    
+    p.equipped[item.type] = item
+    await callback.answer("Предмет надет!")
+    await show_inventory(callback)
 
 @dp.callback_query(F.data == "upgrade_menu")
 async def upgrade_menu(callback: types.CallbackQuery):
     p = engine.get_player(callback.from_user.id)
     cost = Config.UPGRADE_BASE_COST + (p.level * Config.UPGRADE_STEP_COST)
-    
     builder = InlineKeyboardBuilder()
-    stats_to_up = [
-        ("Макс. HP", "max_hp"), ("Реген HP", "hp_regen"), 
-        ("Урон", "damage"), ("Скорость", "attack_speed"),
-        ("Броня", "armor"), ("Маг. Щит", "magic_shield")
-    ]
+    stats_to_up = [("Макс. HP", "max_hp"), ("Реген HP", "hp_regen"), ("Урон", "damage"), 
+                   ("Скорость", "attack_speed"), ("Броня", "armor"), ("Маг. Щит", "magic_shield")]
     for name, key in stats_to_up:
         builder.add(InlineKeyboardButton(text=f"{name} ({cost})", callback_data=f"up_{key}"))
-    
     builder.adjust(2)
     builder.row(InlineKeyboardButton(text="🔙 Назад", callback_data="stats"))
-    await callback.message.edit_text(f"Выберите стат для улучшения.\nСтоимость: {cost} золота.\nВремя: 10 минут.", 
-                                     reply_markup=builder.as_markup())
+    await callback.message.edit_text(f"📈 **Прокачка**\nЦена: {cost}💰\nВремя: 10м", reply_markup=builder.as_markup())
 
 @dp.callback_query(F.data.startswith("up_"))
 async def process_upgrade(callback: types.CallbackQuery):
     p = engine.get_player(callback.from_user.id)
     stat_key = callback.data.split("_")[1]
     cost = Config.UPGRADE_BASE_COST + (p.level * Config.UPGRADE_STEP_COST)
-    
     if p.gold < cost:
         return await callback.answer("Недостаточно золота!", show_alert=True)
     
@@ -275,66 +370,49 @@ async def process_upgrade(callback: types.CallbackQuery):
     p.state = "upgrading"
     p.state_end_time = time.time() + Config.UPGRADE_TIME
     
-    # Сохраняем, что именно качаем (упрощенно добавим сразу по завершении, но в идеале нужен таск)
-    # Здесь для демонстрации просто запустим таймер
-    await callback.message.edit_text(f"⏳ Началась прокачка. Вернитесь через 10 минут.", reply_markup=get_main_kb(p))
+    await callback.message.edit_text(f"⏳ Прокачка запущена. Ждем 10 минут.", reply_markup=get_main_kb(p))
     
-    async def finish_upgrade():
+    async def finish():
         await asyncio.sleep(Config.UPGRADE_TIME)
         if p.state == "upgrading":
             if stat_key == "max_hp": p.stats.max_hp += 20
             elif stat_key == "damage": p.stats.damage += 5
-            elif stat_key == "attack_speed": p.stats.attack_speed += 0.1
+            elif stat_key == "attack_speed": p.stats.attack_speed += 0.05
+            elif stat_key == "armor": p.stats.armor += 2
+            elif stat_key == "magic_shield": p.stats.magic_shield += 5
             p.level += 1
             p.state = "idle"
-    
-    asyncio.create_task(finish_upgrade())
+    asyncio.create_task(finish())
 
 @dp.callback_query(F.data == "find_enemy")
 async def find_enemy(callback: types.CallbackQuery):
     p = engine.get_player(callback.from_user.id)
     enemy = engine.generate_enemy(p.level)
-    
+    p.current_enemy = enemy
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="⚔️ Вступить в бой!", callback_data="battle_start"))
-    builder.row(InlineKeyboardButton(text="🏃 Убежать", callback_data="status"))
-    
-    text = (
-        f"👹 Враг: {enemy['name']} (Ур. {enemy['level']})\n"
-        f"❤️ HP: {enemy['hp']} | ⚔️ Урон: {enemy['damage']}\n"
-        f"⚡️ Скорость: {enemy['attack_speed']}\n"
-        f"Согласны на бой?"
-    )
-    # Сохраним текущего врага в "память" (упрощенно в атрибут игрока)
-    p.current_enemy = enemy 
-    await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    builder.row(InlineKeyboardButton(text="⚔️ В бой!", callback_data="battle_start"))
+    builder.row(InlineKeyboardButton(text="🏃 Назад", callback_data="stats"))
+    await callback.message.edit_text(f"👹 {enemy['name']} (Ур.{enemy['level']})\nHP: {enemy['hp']}\nDMG: {enemy['damage']}", reply_markup=builder.as_markup())
 
 @dp.callback_query(F.data == "battle_start")
 async def battle_start(callback: types.CallbackQuery):
     p = engine.get_player(callback.from_user.id)
     if not hasattr(p, 'current_enemy'): return
-    
     log, win = engine.simulate_battle(p, p.current_enemy)
-    result_text = "\n".join(log[-10:]) # Последние 10 строк боя
-    
     if win:
-        reward = p.current_enemy['gold']
-        p.gold += reward
-        msg = f"🎉 **ПОБЕДА!**\n\n{result_text}\n\nВы получили {reward} золота!"
-        p.state = "idle"
+        p.gold += p.current_enemy['gold']
+        res = f"🎉 Победили {p.current_enemy['name']}! +{p.current_enemy['gold']}💰"
     else:
         p.state = "dead"
         p.state_end_time = time.time() + Config.DEATH_COOLDOWN
-        msg = f"💀 **ВЫ ПОГИБЛИ**\n\n{result_text}\n\nВы сможете воскреснуть через час."
-    
-    await callback.message.edit_text(msg, reply_markup=get_main_kb(p))
+        res = "💀 Вы погибли! Воскрешение 1 час."
+    await callback.message.edit_text(f"{res}\n\n" + "\n".join(log[-5:]), reply_markup=get_main_kb(p))
 
 @dp.callback_query(F.data == "cancel_action")
 async def cancel_action(callback: types.CallbackQuery):
     p = engine.get_player(callback.from_user.id)
     p.state = "idle"
-    await callback.answer("Действие отменено (ресурсы не возвращаются)")
-    await callback.message.edit_text("Вы вернулись в строй.", reply_markup=get_main_kb(p))
+    await callback.message.edit_text("Действие отменено.", reply_markup=get_main_kb(p))
 
 async def main():
     logging.basicConfig(level=logging.INFO)
