@@ -59,7 +59,9 @@ def generate_enemy(difficulty_multiplier):
 def simulate_combat(player, enemy):
     logs = []
     p_hp = player['stats'].get('hp', 100)
+    p_hp_max = player['stats'].get('hp', 100)
     e_hp = enemy['hp']
+    e_hp_max = enemy['hp']
     turn = 0
     
     dmg_bonus = 0
@@ -78,21 +80,65 @@ def simulate_combat(player, enemy):
         turn += 1
         is_crit = random.randint(1, 100) <= p_crit
         dmg_dealt = max(1, (p_dmg * (2 if is_crit else 1)) - enemy.get('def', 0))
+        e_hp_before = e_hp
         e_hp -= dmg_dealt
-        crit_text = " (КРИТ!)" if is_crit else ""
-        logs.append(f"⚔️ Вы нанесли {dmg_dealt} урона{crit_text}. Враг HP: {max(0, e_hp)}")
+        e_hp = max(0, e_hp)
         
-        if e_hp <= 0: break
+        crit_text = " (КРИТ!)" if is_crit else ""
+        logs.append({
+            "type": "player",
+            "dmg": dmg_dealt,
+            "enemy_hp": e_hp,
+            "enemy_hp_max": e_hp_max,
+            "crit": is_crit
+        })
+        
+        if e_hp <= 0:
+            logs.append({"type": "win"})
+            break
 
         is_dodge = random.randint(1, 100) <= p_dodge
         if is_dodge:
-            logs.append(f"💨 Вы уклонились от атаки {enemy['name']}!")
+            logs.append({
+                "type": "dodge",
+                "enemy_name": enemy['name']
+            })
         else:
             dmg_rec = max(0, enemy['dmg'] - p_def)
+            p_hp_before = p_hp
             p_hp -= dmg_rec
-            logs.append(f"🛡️ {enemy['name']} атакует. Вы получили {dmg_rec} урона. Ваше HP: {max(0, p_hp)}")
+            p_hp = max(0, p_hp)
+            logs.append({
+                "type": "enemy",
+                "dmg": dmg_rec,
+                "player_hp": p_hp,
+                "player_hp_max": p_hp_max,
+                "enemy_name": enemy['name']
+            })
+            
+        if p_hp <= 0:
+            logs.append({"type": "death"})
+            break
             
     return p_hp > 0, logs, p_hp
+
+def format_item_name(item):
+    """Форматирует название предмета с правильным родом"""
+    quality = item['quality']
+    itype = item['type']
+    
+    # Род для качества
+    if itype == "weapon":
+        quality_adj = "Обычное" if quality == "Обычное" else "Редкое" if quality == "Редкое" else "Эпическое" if quality == "Эпическое" else "Легендарное"
+        type_name = "Оружие"
+    elif itype == "armor":
+        quality_adj = "Обычная" if quality == "Обычное" else "Редкая" if quality == "Редкое" else "Эпическая" if quality == "Эпическое" else "Легендарная"
+        type_name = "Броня"
+    else:  # accessory
+        quality_adj = "Обычный" if quality == "Обычное" else "Редкий" if quality == "Редкое" else "Эпический" if quality == "Эпическое" else "Легендарный"
+        type_name = "Аксессуар"
+    
+    return f"{quality_adj} {type_name}"
 
 def generate_item(player_rarity):
     types_ru = {"weapon": "Оружие", "armor": "Броня", "accessory": "Аксессуар"}
@@ -111,7 +157,7 @@ def generate_item(player_rarity):
     if itype == "accessory": stats['hp'] = random.randint(20, 50) * mult
     
     return {
-        "name": f"{quality} {types_ru[itype]}",
+        "name": format_item_name({"quality": quality, "type": itype}),
         "type": itype,
         "quality": quality,
         "stats": stats,
@@ -233,7 +279,7 @@ async def cancel_action(call: types.CallbackQuery):
     user = await db.get_user(call.from_user.id)
     data = await dp.storage.get_data(call.from_user.id)
     
-    if 'training_cost' in data:
+    if 'training_cost' in 
         await db.update_user(user['user_id'], gold=user['gold'] + data['training_cost'], lock_until=0)
         await call.answer("✅ Прокачка отменена, золото возвращено", show_alert=True)
     
@@ -306,12 +352,27 @@ async def fight_start(call: types.CallbackQuery, state: FSMContext):
     lock_time = int(time.time()) + 30
     await db.update_user(user['user_id'], lock_until=lock_time)
     
-    fight_start_msg = f"⚔️ Бой начался!\n👹 Враг: {enemy['name']} (HP: {enemy['hp']})\n⏳ Идет симуляция..."
+    fight_start_msg = f"⚔️ Бой начался!\n👹 {enemy['name']} (❤️ {enemy['hp']})\n⏳ Идет симуляция..."
     await call.message.edit_text(fight_start_msg)
     
     await asyncio.sleep(2)
     
     win, logs, hp_left = simulate_combat(user, enemy)
+    
+    # Форматируем лог боя
+    combat_log = []
+    for log in logs:
+        if log["type"] == "player":
+            crit = " (КРИТ!)" if log["crit"] else ""
+            combat_log.append(f"⚔️ Вы атакуете. Здоровье врага: {log['enemy_hp']}/{log['enemy_hp_max']}, вы нанесли {log['dmg']} урона{crit}.")
+        elif log["type"] == "enemy":
+            combat_log.append(f"🛡️ {log['enemy_name']} атакует. Ваше здоровье: {log['player_hp']}/{log['player_hp_max']}, вы получили {log['dmg']} урона.")
+        elif log["type"] == "dodge":
+            combat_log.append(f"💨 Вы уклонились от атаки {log['enemy_name']}!")
+        elif log["type"] == "win":
+            combat_log.append("🏆 Враг мёртв!")
+        elif log["type"] == "death":
+            combat_log.append("💀 Вы погибли.")
     
     if win:
         gold_gain = enemy['gold']
@@ -319,21 +380,39 @@ async def fight_start(call: types.CallbackQuery, state: FSMContext):
         user['stats']['hp'] = max(1, hp_left)
         await db.update_user(user['user_id'], stats=user['stats'])
         
-        drop_msg = f"🏆 Победа!\n💰 Золото: +{gold_gain}\n"
+        # Формируем сообщение о победе
+        result_lines = [
+            "🏆 Победа!",
+            "",
+            f"💰 Золото: +{gold_gain}"
+        ]
+        
         loot_roll = random.randint(1, 100) + user['stats'].get('luck', 0)
         if loot_roll > 80:
             item = generate_item(user['stats'].get('rarity', 0))
             await db.add_item(user['user_id'], item)
-            drop_msg += f"\n🎁 Предмет: {item['name']}"
+            result_lines.append(f"🎁 Предмет: {item['name']}")
         
-        log_text = "\n".join(logs[-5:])
-        result_msg = f"{drop_msg}\n\n📜 Лог боя:\n{log_text}"
+        result_lines.append("")
+        result_lines.append("📜 Лог боя:")
+        result_lines.extend(combat_log)
+        
+        result_msg = "\n".join(result_lines)
         await call.message.edit_text(result_msg, reply_markup=main_menu_kb())
     else:
         death_time = int(time.time()) + DEATH_LOCK_TIME
         await db.update_user(user['user_id'], death_until=death_time, lock_until=death_time)
-        log_text = "\n".join(logs[-5:])
-        death_msg = f"💀 Вы погибли!\n⏳ Блокировка на 1 час.\n\n📜 Лог боя:\n{log_text}"
+        
+        death_lines = [
+            "💀 Вы погибли!",
+            "",
+            "⏳ Блокировка на 1 час.",
+            "",
+            "📜 Лог боя:"
+        ]
+        death_lines.extend(combat_log)
+        
+        death_msg = "\n".join(death_lines)
         await call.message.edit_text(death_msg, reply_markup=main_menu_kb())
 
 # --- МЕДИТАЦИЯ ---
