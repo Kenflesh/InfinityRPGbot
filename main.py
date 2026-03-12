@@ -708,9 +708,11 @@ async def cb_cancel(query: CallbackQuery, callback_data: ActionCB):
 async def cb_check_time(query: CallbackQuery, callback_data: ActionCB):
     player = await get_player(query.from_user.id)
     if player.state != 'idle':
-        time_left = int((player.state_end_time - time.time()) / 60)
+        remaining = player.state_end_time - time.time()
+        minutes = int(remaining // 60)
+        seconds = int(remaining % 60)
         state_rus = {"training": "тренируетесь", "expedition": "в экспедиции", "dead": "мертвы"}.get(player.state, player.state)
-        await query.answer(f"Вы {state_rus}. Осталось примерно {time_left} мин.", show_alert=True)
+        await query.answer(f"Вы {state_rus}. Осталось: {minutes} мин {seconds} сек.", show_alert=True)
     else:
         await query.answer("Вы сейчас не заняты.", show_alert=True)
 
@@ -723,12 +725,14 @@ async def process_any_callback(query: CallbackQuery, bot: Bot):
     await apply_passive_regen(player)
 
     if player.state != 'idle':
-        time_left = int((player.state_end_time - time.time()) / 60)
+        remaining = player.state_end_time - time.time()
+        minutes = int(remaining // 60)
+        seconds = int(remaining % 60)
         if player.state == 'dead':
-            await query.answer(f"Вы мертвы. Воскрешение через: ~{time_left} мин.", show_alert=True)
+            await query.answer(f"Вы мертвы. Воскрешение через: {minutes} мин {seconds} сек.", show_alert=True)
         else:
             state_rus = {"training": "Тренируетесь", "expedition": "В экспедиции"}.get(player.state, player.state)
-            await query.answer(f"Вы заняты ({state_rus}). Осталось: ~{time_left} мин.", show_alert=True)
+            await query.answer(f"Вы заняты ({state_rus}). Осталось: {minutes} мин {seconds} сек.", show_alert=True)
         return
 
     raise SkipHandler()
@@ -858,6 +862,10 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
         result_msg += f"\n❤️ Осталось здоровья: {player.stats['hp']:.1f}/{t_stats['max_hp']:.1f}, 💧 маны: {player.stats['mp']:.1f}/{t_stats['max_mp']:.1f}"
 
         if is_win:
+            # Увеличиваем счётчик убийств ДО выдачи награды, чтобы гарантированно сохранить
+            kills = player.kills_per_difficulty.get(player.current_difficulty, 0)
+            player.kills_per_difficulty[player.current_difficulty] = kills + 1
+
             base_gold = 10 + (player.current_difficulty * 5)
             actual_gold = int(base_gold * enemy['power_mult'] * player.stats["drop_chance"])
             player.gold += actual_gold
@@ -872,9 +880,7 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
                 else:
                     result_msg += "\n📦 Предмет выпал, но инвентарь полон!"
 
-            kills = player.kills_per_difficulty.get(player.current_difficulty, 0)
-            player.kills_per_difficulty[player.current_difficulty] = kills + 1
-
+            # Проверяем открытие нового уровня
             if player.current_difficulty == player.max_unlocked_difficulty and kills + 1 >= KILLS_TO_UNLOCK_NEXT:
                 player.max_unlocked_difficulty += 1
                 result_msg += f"\n✨ Поздравляем! Открыта угроза уровня {player.max_unlocked_difficulty}!"
