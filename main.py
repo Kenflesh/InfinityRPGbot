@@ -169,6 +169,7 @@ class Player:
         self.training_stat = None
         self.difficulty = 1
         self.last_regen_time = time.time()
+        self.percent_bonuses = {}  # процентные бонусы от зелий: {стат: сумма процентов}
 
     @classmethod
     def from_dict(cls, data):
@@ -181,6 +182,7 @@ class Player:
             setattr(p, k, v)
         if not hasattr(p, 'difficulty'): p.difficulty = 1
         if not hasattr(p, 'last_regen_time'): p.last_regen_time = time.time()
+        if not hasattr(p, 'percent_bonuses'): p.percent_bonuses = {}
         return p
 
 async def get_player(user_id, name="Hero"):
@@ -356,19 +358,22 @@ def generate_potion(difficulty):
     # список статов, которые можно повысить зельем (исключаем текущие hp/mp)
     potion_stats = [s for s in STAT_RU.keys() if s not in ["hp", "mp"]]
     stat = random.choice(potion_stats)
-    is_percent = stat in ["crit_chance", "evasion", "atk_spd", "drop_chance", "lifesteal", "thorns"]
-    # величина увеличения
+    # случайный тип: плоский или процентный
+    potion_type = random.choice(["flat", "percent"])
+    is_percent = potion_type == "percent"
     if is_percent:
-        value = round(random.uniform(0.5, 3.0), 1)
+        value = round(random.uniform(0.5, 5.0), 1)  # проценты
     else:
         value = random.randint(1, 5) + difficulty
     price = int(value * random.uniform(20, 50) + 50)
     price = max(100, min(1000, price))
+    name = f"Зелье {STAT_RU[stat]} +{value}{'%' if is_percent else ''}"
     return {
         "stat": stat,
         "value": value,
         "price": price,
-        "name": f"Зелье {STAT_RU[stat]} +{value}{'%' if is_percent else ''}"
+        "type": potion_type,
+        "name": name
     }
 
 def generate_enemy(difficulty):
@@ -427,16 +432,35 @@ async def update_potion_shop(difficulty, force=False):
 # БОЕВАЯ СИСТЕМА
 # ==========================================
 def get_total_stats(player):
+    # база персонажа
     total = player.stats.copy()
+    # собираем плоские и процентные бонусы от предметов
+    flat_items = {k: 0 for k in total.keys()}
+    percent_items = {k: 0 for k in total.keys()}
     for eq_type, item in player.equip.items():
         if item:
             for stat_name, stat_data in item["stats"].items():
                 if stat_name in total:
-                    if stat_data.get("bonus_type") == "percent":
-                        # процент от базового значения персонажа
-                        total[stat_name] += player.stats[stat_name] * (stat_data["current"] / 100.0)
+                    # current = base * (upgrades + 1)
+                    current_val = stat_data['base'] * (stat_data['upgrades'] + 1)
+                    if stat_data.get('bonus_type') == 'percent':
+                        percent_items[stat_name] += current_val
                     else:
-                        total[stat_name] += stat_data["current"]
+                        flat_items[stat_name] += current_val
+    # добавляем процентные бонусы от зелий
+    percent_potions = player.percent_bonuses.copy()
+    # вычисляем итог для каждого стата
+    for stat in total.keys():
+        base = total[stat]  # здоровье, мана и т.д. (текущие значения)
+        # сумма плоских бонусов (предметы)
+        flat = flat_items.get(stat, 0)
+        # сумма процентов (предметы + зелья)
+        percent_sum = percent_items.get(stat, 0) + percent_potions.get(stat, 0)
+        # итог: (база + плоские) * (1 + сумма_процентов/100)
+        total[stat] = (base + flat) * (1 + percent_sum / 100.0)
+    # отдельно обрабатываем текущие hp и mp: они не должны превышать максимумы
+    total['hp'] = min(total['hp'], total['max_hp'])
+    total['mp'] = min(total['mp'], total['max_mp'])
     return total
 
 def simulate_combat_realtime(player, enemy):
@@ -939,8 +963,7 @@ async def view_item(query: CallbackQuery, callback_data: ItemCB):
         s_ru = STAT_RU.get(stat_key, stat_key)
         bonus_type = stat_data.get('bonus_type', 'flat')
         bonus_symbol = '%' if bonus_type == 'percent' else ''
-        text += f"• {s_ru}: {stat_data['current']}{bonus_symbol} (база {stat_data['base']}{bonus_symbol}, улучшений: {stat_data['upgrades']}) - Улучшить: 💰 {upg_cost} (+{inc:.2f}{bonus_symbol})\n"
-
+        text += f"• {s_ru}: {stat_data['current']}{bonus_symbol} (база {stat_data['base']}{bonus_symbol}, улучшений: {stat_data['upgrades']}) - Улучшить: 💰 {upg_cost} (+{stat_data['base']}{bonus_symbol})\n"
         c_idx = 900 + ["weapon", "armor", "accessory"].index(slot_name) if is_equip else real_idx
         b.button(text=f"Улучшить {s_ru}", callback_data=ItemCB(action="upg", idx=c_idx, stat=stat_key).pack())
 
@@ -1034,7 +1057,7 @@ async def upg_item(query: CallbackQuery, callback_data: ItemCB):
         if stat_key == "atk_spd":
             inc = 0.05
 
-        s_data['current'] = round(s_data['current'] + inc, 2)
+        s_data['current'] = s_data['base'] * (s_data['upgrades'] + 1)
         item['sell_price'] += int(upg_cost * 0.3)
 
         await save_player(player)
@@ -1200,11 +1223,13 @@ async def process_potions(query: CallbackQuery, callback_data: PotionCB):
         pot = entry["potion"]
         if player.gold >= pot["price"]:
             player.gold -= pot["price"]
-            stat = pot["stat"]
-            player.stats[stat] += pot["value"]
+            if pot["type"] == "flat":
+                player.stats[pot["stat"]] += pot["value"]
+            else:  # percent
+                player.percent_bonuses[pot["stat"]] = player.percent_bonuses.get(pot["stat"], 0) + pot["value"]
             entry["sold"] = True
             await save_player(player)
-            await query.answer(f"Вы выпили зелье! {STAT_RU[stat]} увеличен на {pot['value']}.")
+            await query.answer(f"Вы выпили зелье! {STAT_RU[pot['stat']]} увеличен на {pot['value']}{'%' if pot['type']=='percent' else ''}.")
             await menu_potions(query, MenuCB(action="potions"))
         else:
             await query.answer("Недостаточно золота!", show_alert=True)
