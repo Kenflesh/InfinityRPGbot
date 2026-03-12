@@ -9,7 +9,7 @@ from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 # Вставь сюда токен своего бота
-TOKEN = "YOUR_BOT_TOKEN_HERE"
+TOKEN = os.getenv("BOT_TOKEN")
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
@@ -453,3 +453,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
