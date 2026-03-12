@@ -68,11 +68,11 @@ CONFIG = {
     "time_potion_update": 600,
 
     "enemy_base_stats": {
-        "hp": 50, "atk": 5, "def": 2, "atk_spd": 0.1, "accuracy": 10, "evasion_rating": 10,
+        "hp": 50, "atk": 5, "def": 2, "atk_spd": 0.1, "accuracy": 10, "evasion_rating": 2,
         "magic_atk": 0, "magic_res": 0
     },
     "enemy_stat_scale": {
-        "hp": 15, "atk": 2.5, "def": 1, "atk_spd": 0.01, "accuracy": 2, "evasion_rating": 2,
+        "hp": 15, "atk": 2.5, "def": 1, "atk_spd": 0.01, "accuracy": 2, "evasion_rating": 0.25,
         "magic_atk": 1.5, "magic_res": 0.5
     }
 }
@@ -158,7 +158,7 @@ class Player:
         self.stats = {
             "max_hp": 100, "hp": 100, "max_mp": 50, "mp": 50,
             "atk": 10, "def": 5, "m_shield": 0,
-            "crit_chance": 5.0, "crit_damage": 200.0, "accuracy": 10.0, "evasion_rating": 10.0,
+            "crit_chance": 5.0, "crit_damage": 200.0, "accuracy": 10.0, "evasion_rating": 2.0,
             "atk_spd": 0.1,
             "hp_regen": 1.0, "mp_regen": 1.0, "drop_chance": 1.0,
             "lifesteal": 0.0, "armor_pen": 0, "magic_atk": 0, "magic_res": 0, "thorns": 0.0
