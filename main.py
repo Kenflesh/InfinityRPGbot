@@ -826,8 +826,11 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
             # показываем сообщение о смерти с главным меню (но игрок мёртв, кнопки будут блокироваться)
             await safe_edit(query.message, f"{log_text}\n\n<b>{result_msg}</b>", reply_markup=main_menu_kbd())
         else:
-            # после боя возвращаемся в меню охоты
-            await menu_hunt(query, MenuCB(action="hunt"))
+            # показываем лог победы с кнопкой возврата к охоте
+            from aiogram.utils.keyboard import InlineKeyboardBuilder
+            back_builder = InlineKeyboardBuilder()
+            back_builder.button(text="🔙 К охоте", callback_data=MenuCB(action="hunt").pack())
+            await safe_edit(query.message, f"{log_text}\n\n<b>{result_msg}</b>", reply_markup=back_builder.as_markup())
 
 @dp.message(Form.waiting_for_difficulty)
 async def hunt_diff_input(message: Message, state: FSMContext):
@@ -1302,4 +1305,3 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
-
