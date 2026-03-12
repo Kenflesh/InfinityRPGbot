@@ -39,6 +39,27 @@ STAT_RU = {
     "magic_atk": "Маг. Атака", "magic_res": "Маг. Сопротивление", "thorns": "Шипы"
 }
 
+TRAINING_INCREMENTS = {
+    "max_hp": 1.0,
+    "max_mp": 1.0,
+    "atk": 0.1,
+    "def": 0.1,
+    "m_shield": 0.1,
+    "crit_chance": 0.01,
+    "crit_damage": 0.5,
+    "accuracy": 0.05,
+    "evasion_rating": 0.05,
+    "atk_spd": 0.005,
+    "hp_regen": 0.01,
+    "mp_regen": 0.01,
+    "drop_chance": 0.001,
+    "lifesteal": 0.001,
+    "armor_pen": 0.05,
+    "magic_atk": 0.1,
+    "magic_res": 0.1,
+    "thorns": 0.001
+}
+
 PREFIXES = ["Свирепый", "Древний", "Пылающий", "Забытый", "Проклятый", "Святой", "Теневой", "Искрящийся", "Тяжелый", "Легкий"]
 NOUNS = {
     "weapon": ["Меч", "Топор", "Кинжал", "Посох", "Лук", "Молот", "Копье"],
@@ -55,11 +76,11 @@ CONFIG = {
     "time_potion_update": 600,
 
     "enemy_base_stats": {
-        "hp": 50, "atk": 5, "def": 2, "atk_spd": 0.3, "accuracy": 20, "evasion_rating": 2,
+        "hp": 25, "atk": 5, "def": 2, "atk_spd": 0.2, "accuracy": 20, "evasion_rating": 10,
         "magic_atk": 0, "magic_res": 0
     },
     "enemy_stat_scale": {
-        "hp": 15, "atk": 2.5, "def": 1, "atk_spd": 0.02, "accuracy": 2, "evasion_rating": 0.1,
+        "hp": 25, "atk": 5, "def": 1, "atk_spd": 0.02, "accuracy": 2.5, "evasion_rating": 0.05,
         "magic_atk": 1.5, "magic_res": 0.5
     }
 }
@@ -240,10 +261,8 @@ async def background_worker():
 
                     elif player.state == 'training':
                         stat = player.training_stat
-                        if stat in ["atk_spd", "lifesteal", "thorns", "crit_chance", "crit_damage", "accuracy", "evasion_rating"]:
-                            increment = 0.01
-                        else:
-                            increment = player.stats[stat] * 0.1 if player.stats[stat] > 0 else 1.0
+
+                        increment = TRAINING_INCREMENTS.get(stat, 0.01)  # значение по умолчанию
                         player.stats[stat] += increment
                         player.stat_upgrades[stat] += 1
                         player.state = 'idle'
@@ -314,11 +333,11 @@ def generate_item(rarity):
     item_stats = {}
 
     stat_mult = {
-        "atk": 2.0, "magic_atk": 2.0, "def": 2.0, "magic_res": 2.0,
-        "max_hp": 2.0, "max_mp": 2.0, "hp_regen": 1.0, "mp_regen": 1.0,
-        "armor_pen": 1.5, "crit_chance": 0.8, "crit_damage": 0.8,
-        "accuracy": 1.0, "evasion_rating": 1.0,
-        "atk_spd": 0.3, "drop_chance": 0.5, "lifesteal": 0.5, "thorns": 0.5
+        "atk": 0.2, "magic_atk": 0.2, "def": 0.2, "magic_res": 0.2,
+        "max_hp": 0.5, "max_mp": 0.5, "hp_regen": 0.1, "mp_regen": 0.1,
+        "armor_pen": 0.5, "crit_chance": 0.2, "crit_damage": 0.2,
+        "accuracy": 0.5, "evasion_rating": 0.25,
+        "atk_spd": 0.01, "drop_chance": 0.01, "lifesteal": 0.01, "thorns": 0.01
     }
 
     base_price = 0
@@ -326,9 +345,8 @@ def generate_item(rarity):
         is_percent = stat in ["crit_chance", "crit_damage", "atk_spd", "drop_chance", "lifesteal", "thorns", "accuracy", "evasion_rating"]
         mult = stat_mult.get(stat, 1.0)
 
-        base_val = max(1, int((rarity * random.uniform(0.8, 1.2)) * mult))
-        if is_percent and base_val > 50:
-            base_val = 50.0
+        base_val = max(1, int((rarity * 0.25 * random.uniform(0.8, 1.2)) * mult))
+        
         if stat == "atk_spd":
             base_val = round(base_val / 20.0, 2)
 
@@ -352,7 +370,7 @@ def generate_item(rarity):
         "name": name,
         "type": i_type,
         "stats": item_stats,
-        "sell_price": max(10, int(base_price * 0.5))
+        "sell_price": max(10, int(base_price * 0.25))
     }
 
 def generate_ability(difficulty):
@@ -705,8 +723,8 @@ async def get_item_view_data(player: Player, idx: int):
 
     for stat_key, stat_data in item["stats"].items():
         is_percent = stat_key in ["crit_chance", "crit_damage", "atk_spd", "drop_chance", "lifesteal", "thorns", "accuracy", "evasion_rating"]
-        raw_cost = (stat_data['base'] * 10 + stat_data['upgrades'] * stat_data['base'] * 5) * stat_data.get('upgrade_price_mult', 1.0)
-        upg_cost = max(50, int(raw_cost))
+        raw_cost = (stat_data['base'] * 50 + stat_data['upgrades'] * stat_data['base'] * 20) * stat_data.get('upgrade_price_mult', 1.0)
+        upg_cost = max(250, int(raw_cost))
         s_ru = STAT_RU.get(stat_key, stat_key)
         bonus_type = stat_data.get('bonus_type', 'flat')
         bonus_symbol = '%' if bonus_type == 'percent' else ''
@@ -861,12 +879,8 @@ async def menu_train(query: CallbackQuery, callback_data: MenuCB):
     for i, stat in enumerate(stats[start:end], start=1):
         upgrades = player.stat_upgrades[stat]
         stat_name = STAT_RU.get(stat, stat)
-        # Определяем прирост
-        if stat in ["atk_spd", "lifesteal", "thorns", "crit_chance", "crit_damage", "accuracy", "evasion_rating"]:
-            increment = "+0.01"
-        else:
-            increment = "+10%"
-        text += f"{i}. <b>{stat_name}</b> (улучшений: {upgrades}, прирост: {increment})\n"
+        increment_value = TRAINING_INCREMENTS.get(stat, 0.01)
+        text += f"{i}. <b>{stat_name}</b> (+{increment_value})\n"
         builder.button(text=f"{i}", callback_data=TrainCB(stat=stat).pack())
 
     builder.adjust(3)
@@ -907,7 +921,7 @@ async def menu_hunt(query: CallbackQuery, callback_data: MenuCB):
     if player.current_difficulty == player.max_unlocked_difficulty and kills_needed > 0:
         next_unlock_info = f"\n⚔️ До следующей угрозы осталось убить: {kills_needed} врагов"
     elif player.current_difficulty < player.max_unlocked_difficulty:
-        next_unlock_info = f"\n✅ Угроза {player.current_difficulty} уже открыта"
+        next_unlock_info = f"\n✅ Угроза {player.max_unlocked_difficulty} уже открыта"
 
     b.button(text="◀️", callback_data=HuntCB(action="dec").pack())
     b.button(text=f"Угроза: {player.current_difficulty}", callback_data=HuntCB(action="set").pack())
@@ -1133,8 +1147,8 @@ async def upg_item(query: CallbackQuery, callback_data: ItemCB):
         return
 
     s_data = item["stats"][stat_key]
-    raw_cost = (s_data['base'] * 10 + s_data['upgrades'] * s_data['base'] * 5) * s_data.get('upgrade_price_mult', 1.0)
-    upg_cost = max(50, int(raw_cost))
+    raw_cost = (s_data['base'] * 50 + s_data['upgrades'] * s_data['base'] * 20) * s_data.get('upgrade_price_mult', 1.0)
+    upg_cost = max(250, int(raw_cost))
 
     if player.gold >= upg_cost:
         player.gold -= upg_cost
@@ -1161,7 +1175,7 @@ async def menu_shop(query: CallbackQuery, callback_data: MenuCB):
     player = await get_player(query.from_user.id)
     await update_shop(player)
 
-    cost_slot = 500 + ((player.inv_slots - 10) * 500)
+    cost_slot = 1000 + ((player.inv_slots - 10) * 2000)
 
     text = f"💰 Золото: {player.gold}\n🏪 <b>Магазин (обновляется каждые 10 мин)</b>\nРедкость: {player.shop_rarity}\n\nАссортимент:\n"
 
@@ -1181,19 +1195,19 @@ async def menu_shop(query: CallbackQuery, callback_data: MenuCB):
         if "item" in entry:
             it = entry["item"]
             stat_desc = ", ".join([f"{STAT_RU.get(k,k)}:{v['base']:.2f}" for k, v in it['stats'].items()])
-            price = int(it['sell_price'] * 2 * (1 + player.shop_rarity / 5))
+            price = int(it['sell_price'] * 5 * (1 + player.shop_rarity / 3))
             text += f"\n{idx}. 📦 {it['name']} ({stat_desc})\n   Стоимость: 💰 {price}\n"
             b.button(text=f"{idx}", callback_data=ShopCB(action="buy_it", idx=i).pack())
             idx += 1
         elif "ability" in entry:
             ab = entry["ability"]
-            price = int(ab['sell_price'] * 2 * (1 + player.shop_rarity / 5))
+            price = int(ab['sell_price'] * 5 * (1 + player.shop_rarity / 3))
             text += f"\n{idx}. ✨ Навык: {ab['name']} (Сила: {ab['current_value']}, база {ab['base_value']})\n   Стоимость: 💰 {price}\n"
             b.button(text=f"{idx}", callback_data=ShopCB(action="buy_ab", idx=i).pack())
             idx += 1
 
     b.adjust(3)
-    b.row(InlineKeyboardButton(text="Обновить товары (💰 100)", callback_data=ShopCB(action="refresh").pack()))
+    b.row(InlineKeyboardButton(text="Обновить товары (💰 500)", callback_data=ShopCB(action="refresh").pack()))
     b.row(InlineKeyboardButton(text=f"Слот инвентаря (💰 {cost_slot})", callback_data=ShopCB(action="slot").pack()))
     b.row(InlineKeyboardButton(text="Восстановить ХП/МП (💰 25)", callback_data=ShopCB(action="heal").pack()))
     b.row(InlineKeyboardButton(text="🔙 Назад", callback_data=MenuCB(action="profile").pack()))
@@ -1221,8 +1235,8 @@ async def process_shop(query: CallbackQuery, callback_data: ShopCB, state: FSMCo
         await state.set_state(Form.waiting_for_shop_rarity)
         await query.answer()
     elif act == "refresh":
-        if player.gold >= 100:
-            player.gold -= 100
+        if player.gold >= 500:
+            player.gold -= 500
             await save_player(player)
             await update_shop(player, force=True)
             await query.answer("Магазин обновлен!")
@@ -1230,7 +1244,7 @@ async def process_shop(query: CallbackQuery, callback_data: ShopCB, state: FSMCo
         else:
             await query.answer("Недостаточно золота!", show_alert=True)
     elif act == "slot":
-        cost = 500 + ((player.inv_slots - 10) * 500)
+        cost = 1000 + ((player.inv_slots - 10) * 2000)
         if player.gold >= cost:
             player.gold -= cost
             player.inv_slots += 1
@@ -1256,7 +1270,7 @@ async def process_shop(query: CallbackQuery, callback_data: ShopCB, state: FSMCo
             await query.answer("Уже продано!")
             return
         obj = entry.get("item") or entry.get("ability")
-        price = int(obj.get("sell_price", 10) * 2 * (1 + player.shop_rarity / 5))
+        price = int(obj.get("sell_price", 10) * 5 * (1 + player.shop_rarity / 3))
 
         if player.gold >= price:
             if act == "buy_it":
@@ -1300,7 +1314,7 @@ async def menu_potions(query: CallbackQuery, callback_data: MenuCB):
     player = await get_player(query.from_user.id)
     await update_potion_shop(player)
 
-    next_upgrade_cost = 1000 * (player.potion_shop_level + 1)
+    next_upgrade_cost = 12500 * (player.potion_shop_level + 1)
 
     text = f"💰 Золото: {player.gold}\n🧪 <b>Лавка зелий (обновляется каждые 10 мин)</b>\nУровень лавки: {player.potion_shop_level}\n"
     text += f"Следующее улучшение: 💰 {next_upgrade_cost}\n\nАссортимент:\n"
@@ -1338,7 +1352,7 @@ async def process_potions(query: CallbackQuery, callback_data: PotionCB):
         else:
             await query.answer("Недостаточно золота!", show_alert=True)
     elif act == "upgrade":
-        cost = 1000 * (player.potion_shop_level + 1)
+        cost = 12500 * (player.potion_shop_level + 1)
         if player.gold >= cost:
             player.gold -= cost
             player.potion_shop_level += 1
