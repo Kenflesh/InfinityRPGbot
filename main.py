@@ -526,12 +526,13 @@ def simulate_combat_realtime(player, enemy):
     # Инициализируем щит как максимальное значение
     current_shield = p_stats['m_shield']
     log = [
-        f"⚔️ <b>Бой начался! Угроза: {enemy['difficulty']}</b>",
-        f"👤 <b>{player.name}</b>: ❤️ {p_stats['hp']:.1f}/{p_stats['max_hp']:.1f} | 🛡 {current_shield:.1f} | 💧 {p_stats['mp']:.1f}/{p_stats['max_mp']:.1f} | 🗡 АТК: {p_stats['atk']:.2f} | ⚡ Скор: {p_stats['atk_spd']:.2f}",
-        f"   🎯 Точность: {p_stats['accuracy']:.2f} | 💨 Уклонение: {p_stats['evasion_rating']:.2f} | Шанс уклонения врага: {get_evasion_chance(p_stats['accuracy'], e_stats['evasion_rating']):.1f}%",
-        f"👹 <b>{enemy['name']}</b>: ❤️ {enemy['hp']:.1f}/{enemy['max_hp']:.1f} | 🗡 АТК: {enemy['atk']:.2f} | ⚡ Скор: {enemy['atk_spd']:.2f}",
-        f"   🎯 Точность: {e_stats['accuracy']:.2f} | 💨 Уклонение: {e_stats['evasion_rating']:.2f} | Шанс вашего уклонения: {get_evasion_chance(e_stats['accuracy'], p_stats['evasion_rating']):.1f}%",
-        "-" * 20
+        f"⚔️ <b>Бой начался!\n\nУгроза: {enemy['difficulty']}</b>\n",
+        f"\n👤 <b>Вы:\n{player.name}</b>:\n❤️ {p_stats['hp']:.1f}/{p_stats['max_hp']:.1f} | 🛡 {current_shield:.1f} | 💧 {p_stats['mp']:.1f}/{p_stats['max_mp']:.1f}\n🗡 АТК: {p_stats['atk']:.2f} | ⚡ Скор: {p_stats['atk_spd']:.2f}",
+        f"   🎯 Точность: {p_stats['accuracy']:.2f} | 💨 Уклонение: {p_stats['evasion_rating']:.2f}",
+        f"\n👹 <b>Враг:\n{enemy['name']}</b>: ❤️ {enemy['hp']:.1f}/{enemy['max_hp']:.1f} | 🗡 АТК: {enemy['atk']:.2f} | ⚡ Скор: {enemy['atk_spd']:.2f}",
+        f"   🎯 Точность: {e_stats['accuracy']:.2f} | 💨 Уклонение: {e_stats['evasion_rating']:.2f}",
+        f"\n\n 🎯 Шанс вашего уклонения: {get_evasion_chance(e_stats['accuracy'], p_stats['evasion_rating']):.1f}% | Шанс уклонения врага: {get_evasion_chance(p_stats['accuracy'], e_stats['evasion_rating']):.1f}%",
+        "=" * 40
     ]
 
     p_cooldown = 1.0 / max(0.05, p_stats["atk_spd"])
