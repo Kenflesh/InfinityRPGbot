@@ -345,8 +345,14 @@ def generate_item(rarity):
         is_percent = stat in ["crit_chance", "crit_damage", "atk_spd", "drop_chance", "lifesteal", "thorns", "accuracy", "evasion_rating"]
         mult = stat_mult.get(stat, 1.0)
 
-        base_val = max(1, int((rarity * 0.25 * random.uniform(0.8, 1.2)) * mult))
-        
+        raw = (rarity * 0.25 * random.uniform(0.8, 1.2)) * mult
+        # Статы, которые должны оставаться целыми (не меньше 1)
+        integer_stats = ["atk", "def", "max_hp", "max_mp", "magic_atk", "magic_res", "armor_pen"]
+        if stat in integer_stats:
+            base_val = max(1, int(raw))
+        else:
+            # Для дробных статов (проценты, скорость атаки, вампиризм и т.д.) разрешаем значения меньше 1
+            base_val = max(0.01, round(raw, 2))
         if stat == "atk_spd":
             base_val = round(base_val / 20.0, 2)
 
@@ -436,7 +442,7 @@ def get_evasion_chance(acc, eva):
     return eva / (acc + eva) * 100
 
 def generate_enemy(difficulty):
-    variance = lambda: random.uniform(0.7, 1.3)
+    variance = lambda: random.uniform(0.6, 1.2)
     e_stats = {}
     for k in ["hp", "atk", "def", "magic_atk", "magic_res", "accuracy", "evasion_rating"]:
         base = CONFIG["enemy_base_stats"].get(k, 0)
