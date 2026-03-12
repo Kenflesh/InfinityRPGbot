@@ -663,6 +663,72 @@ async def safe_edit(message: Message, text: str, reply_markup: InlineKeyboardMar
         if "message is not modified" not in str(e):
             raise
 
+# ==========================================
+# ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ПРОСМОТРА ПРЕДМЕТА
+# ==========================================
+async def get_item_view_data(player: Player, idx: int):
+    """
+    Возвращает (text, reply_markup) для просмотра предмета по индексу idx.
+    Если предмет не найден, возвращает (None, None).
+    """
+    is_equip = False
+    real_idx = -1
+    item = None
+    slot_name = ""
+
+    btn_index = 0
+    for slot, eq_item in player.equip.items():
+        if eq_item:
+            if btn_index == idx:
+                item = eq_item
+                is_equip = True
+                slot_name = slot
+                break
+            btn_index += 1
+
+    if not is_equip:
+        for r_idx, inv_item in enumerate(player.inventory):
+            if btn_index == idx:
+                item = inv_item
+                real_idx = r_idx
+                break
+            btn_index += 1
+
+    if not item:
+        return None, None
+
+    type_ru = {"weapon": "Оружие", "armor": "Броня", "accessory": "Амулет"}[item['type']]
+    text = f"💰 Золото: {player.gold}\n📦 <b>{item['name']}</b> ({'Надето' if is_equip else 'В сумке'})\nТип: {type_ru}\n\nХарактеристики:\n"
+
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    b = InlineKeyboardBuilder()
+
+    for stat_key, stat_data in item["stats"].items():
+        is_percent = stat_key in ["crit_chance", "crit_damage", "atk_spd", "drop_chance", "lifesteal", "thorns", "accuracy", "evasion_rating"]
+        raw_cost = (stat_data['base'] * 10 + stat_data['upgrades'] * stat_data['base'] * 5) * stat_data.get('upgrade_price_mult', 1.0)
+        upg_cost = max(50, int(raw_cost))
+        s_ru = STAT_RU.get(stat_key, stat_key)
+        bonus_type = stat_data.get('bonus_type', 'flat')
+        bonus_symbol = '%' if bonus_type == 'percent' else ''
+        text += f"• {s_ru}: {stat_data['current']:.2f}{bonus_symbol} (база {stat_data['base']:.2f}{bonus_symbol}, улучшений: {stat_data['upgrades']}) - Улучшить: 💰 {upg_cost} (+{stat_data['base']:.2f}{bonus_symbol})\n"
+        c_idx = 900 + ["weapon", "armor", "accessory"].index(slot_name) if is_equip else real_idx
+        b.button(text=f"Улучшить {s_ru}", callback_data=ItemCB(action="upg", idx=c_idx, stat=stat_key).pack())
+
+    b.adjust(1)
+
+    if is_equip:
+        b.row(InlineKeyboardButton(text="Снять", callback_data=ItemCB(action="unequip", idx=c_idx).pack()))
+    else:
+        b.row(InlineKeyboardButton(text="Надеть", callback_data=ItemCB(action="equip", idx=real_idx).pack()))
+        b.row(InlineKeyboardButton(text=f"Продать (💰 {item['sell_price']})", callback_data=ItemCB(action="sell", idx=real_idx).pack()))
+
+    b.row(InlineKeyboardButton(text="🔙 Назад", callback_data=MenuCB(action="inv").pack()))
+
+    return text, b.as_markup()
+
+# ==========================================
+# ОБРАБОТЧИКИ
+# ==========================================
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
     await load_db()
@@ -994,61 +1060,12 @@ async def view_item(query: CallbackQuery, callback_data: ItemCB):
     player = await get_player(query.from_user.id)
     idx = callback_data.idx
 
-    is_equip = False
-    real_idx = -1
-    item = None
-    slot_name = ""
-
-    btn_index = 0
-    for slot, eq_item in player.equip.items():
-        if eq_item:
-            if btn_index == idx:
-                item = eq_item
-                is_equip = True
-                slot_name = slot
-                break
-            btn_index += 1
-
-    if not is_equip:
-        for r_idx, inv_item in enumerate(player.inventory):
-            if btn_index == idx:
-                item = inv_item
-                real_idx = r_idx
-                break
-            btn_index += 1
-
-    if not item:
+    text, reply_markup = await get_item_view_data(player, idx)
+    if text is None:
         await query.answer("Предмет не найден!")
         return
 
-    type_ru = {"weapon": "Оружие", "armor": "Броня", "accessory": "Амулет"}[item['type']]
-    text = f"💰 Золото: {player.gold}\n📦 <b>{item['name']}</b> ({'Надето' if is_equip else 'В сумке'})\nТип: {type_ru}\n\nХарактеристики:\n"
-
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
-    b = InlineKeyboardBuilder()
-
-    for stat_key, stat_data in item["stats"].items():
-        is_percent = stat_key in ["crit_chance", "crit_damage", "atk_spd", "drop_chance", "lifesteal", "thorns", "accuracy", "evasion_rating"]
-        raw_cost = (stat_data['base'] * 10 + stat_data['upgrades'] * stat_data['base'] * 5) * stat_data.get('upgrade_price_mult', 1.0)
-        upg_cost = max(50, int(raw_cost))
-        s_ru = STAT_RU.get(stat_key, stat_key)
-        bonus_type = stat_data.get('bonus_type', 'flat')
-        bonus_symbol = '%' if bonus_type == 'percent' else ''
-        text += f"• {s_ru}: {stat_data['current']:.2f}{bonus_symbol} (база {stat_data['base']:.2f}{bonus_symbol}, улучшений: {stat_data['upgrades']}) - Улучшить: 💰 {upg_cost} (+{stat_data['base']:.2f}{bonus_symbol})\n"
-        c_idx = 900 + ["weapon", "armor", "accessory"].index(slot_name) if is_equip else real_idx
-        b.button(text=f"Улучшить {s_ru}", callback_data=ItemCB(action="upg", idx=c_idx, stat=stat_key).pack())
-
-    b.adjust(1)
-
-    if is_equip:
-        b.row(InlineKeyboardButton(text="Снять", callback_data=ItemCB(action="unequip", idx=c_idx).pack()))
-    else:
-        b.row(InlineKeyboardButton(text="Надеть", callback_data=ItemCB(action="equip", idx=real_idx).pack()))
-        b.row(InlineKeyboardButton(text=f"Продать (💰 {item['sell_price']})", callback_data=ItemCB(action="sell", idx=real_idx).pack()))
-
-    b.row(InlineKeyboardButton(text="🔙 Назад", callback_data=MenuCB(action="inv").pack()))
-
-    await safe_edit(query.message, text, reply_markup=b.as_markup())
+    await safe_edit(query.message, text, reply_markup)
 
 @dp.callback_query(ItemCB.filter(F.action == "equip"))
 async def eq_item(query: CallbackQuery, callback_data: ItemCB):
@@ -1128,7 +1145,14 @@ async def upg_item(query: CallbackQuery, callback_data: ItemCB):
         await save_player(player)
         await query.answer("Характеристика улучшена!")
 
-        await view_item(query, ItemCB(action="view", idx=callback_data.idx, stat=""))
+        # Обновляем отображение предмета, используя свежего игрока
+        updated_player = await get_player(query.from_user.id)
+        text, reply_markup = await get_item_view_data(updated_player, callback_data.idx)
+        if text:
+            await safe_edit(query.message, text, reply_markup)
+        else:
+            # Если предмет вдруг исчез, вернёмся в инвентарь
+            await menu_inv(query, MenuCB(action="inv"))
     else:
         await query.answer("Недостаточно золота!", show_alert=True)
 
