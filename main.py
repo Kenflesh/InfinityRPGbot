@@ -257,7 +257,9 @@ async def background_worker():
                         drop_chance = 0.4 * player.stats["drop_chance"]
                         items_found = 0
                         while random.random() < drop_chance and items_found < 3:
-                            item = generate_item(player.difficulty)
+                            # Используем эффективную сложность с учётом drop_chance
+                            eff_diff = max(1, int(player.difficulty * player.stats["drop_chance"]))
+                            item = generate_item(eff_diff)
                             if len(player.inventory) < player.inv_slots:
                                 player.inventory.append(item)
                                 items_found += 1
@@ -369,11 +371,15 @@ def generate_potion(level):
     potion_type = random.choice(["flat", "percent"])
     is_percent = potion_type == "percent"
 
-    if stat in ["atk_spd", "lifesteal", "thorns", "crit_chance", "crit_damage", "accuracy", "evasion_rating"]:
+    # Для сильных статов значения должны быть малы
+    strong_stats = ["atk_spd", "lifesteal", "thorns", "crit_chance", "crit_damage", "accuracy", "evasion_rating"]
+
+    if stat in strong_stats:
         if is_percent:
             base_value = round(random.uniform(0.1, 1.0), 1)
         else:
-            base_value = random.randint(1, 2)
+            # плоские значения для сильных статов – дробные
+            base_value = round(random.uniform(0.02, 0.5), 2)
     else:
         if is_percent:
             base_value = round(random.uniform(0.2, 2.0), 1)
@@ -382,8 +388,10 @@ def generate_potion(level):
 
     multiplier = 1 + level
     value = base_value * multiplier
-    if not is_percent:
+    if not is_percent and stat not in strong_stats:
         value = int(value)
+    else:
+        value = round(value, 2)
 
     base_price = int(base_value * random.uniform(20, 50) + 50)
     price = int(base_price * multiplier * (1 + 0.7 * level))
@@ -485,9 +493,11 @@ def simulate_combat_realtime(player, enemy):
     p_stats = get_total_stats(player)
     e_stats = enemy.copy()
 
+    # Инициализируем щит как максимальное значение
+    current_shield = p_stats['m_shield']
     log = [
         f"⚔️ <b>Бой начался! Угроза: {enemy['difficulty']}</b>",
-        f"👤 <b>{player.name}</b>: ❤️ {p_stats['hp']:.1f}/{p_stats['max_hp']:.1f} | 💧 {p_stats['mp']:.1f}/{p_stats['max_mp']:.1f} | 🗡 АТК: {p_stats['atk']:.2f} | ⚡ Скор: {p_stats['atk_spd']:.2f}",
+        f"👤 <b>{player.name}</b>: ❤️ {p_stats['hp']:.1f}/{p_stats['max_hp']:.1f} | 🛡 {current_shield:.1f} | 💧 {p_stats['mp']:.1f}/{p_stats['max_mp']:.1f} | 🗡 АТК: {p_stats['atk']:.2f} | ⚡ Скор: {p_stats['atk_spd']:.2f}",
         f"   🎯 Точность: {p_stats['accuracy']:.2f} | 💨 Уклонение: {p_stats['evasion_rating']:.2f} | Шанс уклонения врага: {get_evasion_chance(p_stats['accuracy'], e_stats['evasion_rating']):.1f}%",
         f"👹 <b>{enemy['name']}</b>: ❤️ {enemy['hp']:.1f}/{enemy['max_hp']:.1f} | 🗡 АТК: {enemy['atk']:.2f} | ⚡ Скор: {enemy['atk_spd']:.2f}",
         f"   🎯 Точность: {e_stats['accuracy']:.2f} | 💨 Уклонение: {e_stats['evasion_rating']:.2f} | Шанс вашего уклонения: {get_evasion_chance(e_stats['accuracy'], p_stats['evasion_rating']):.1f}%",
@@ -575,13 +585,16 @@ def simulate_combat_realtime(player, enemy):
                 total_dmg = dmg + magic_dmg
                 if total_dmg <= 0: total_dmg = 1
 
-                if p_stats["m_shield"] > 0:
-                    absorbed = min(total_dmg, p_stats["m_shield"])
-                    p_stats["m_shield"] -= absorbed
+                # Сначала поглощаем щитом
+                if current_shield > 0:
+                    absorbed = min(total_dmg, current_shield)
+                    current_shield -= absorbed
                     total_dmg -= absorbed
+                    log.append(f"[{time_elapsed:.1f}с] 🛡 Щит поглотил {absorbed:.1f} урона. Осталось щита: {current_shield:.1f}")
 
-                p_stats["hp"] -= total_dmg
-                log.append(f"[{time_elapsed:.1f}с] 🩸 Враг нанес {total_dmg:.1f} урона. (Вы: {max(0, p_stats['hp']):.1f}/{p_stats['max_hp']})")
+                if total_dmg > 0:
+                    p_stats["hp"] -= total_dmg
+                    log.append(f"[{time_elapsed:.1f}с] 🩸 Враг нанес {total_dmg:.1f} урона. (Вы: {max(0, p_stats['hp']):.1f}/{p_stats['max_hp']})")
 
                 if p_stats["thorns"] > 0 and total_dmg > 0:
                     thorns_dmg = total_dmg * (p_stats["thorns"] / 100.0)
@@ -594,6 +607,7 @@ def simulate_combat_realtime(player, enemy):
 
     player.stats["hp"] = max(0, p_stats["hp"])
     player.stats["mp"] = max(0, p_stats["mp"])
+    # Щит не сохраняем – он сбросится в следующем бою
 
     if time_elapsed >= max_time:
         return False, log, "⏳ Время боя вышло! Враг сбежал, а вы истощены."
@@ -745,6 +759,7 @@ async def menu_profile(query: CallbackQuery, callback_data: MenuCB):
     text = f"👤 <b>Профиль: {player.name}</b>\n💰 Золото: {player.gold}\n🏪 Редкость магазина: {player.shop_rarity}\n🧪 Уровень лавки зелий: {player.potion_shop_level}\n"
     text += f"🔓 Доступная угроза: {player.max_unlocked_difficulty}\n\n"
     text += f"❤️ {STAT_RU['hp']}: {player.stats['hp']:.1f}/{t_stats['max_hp']:.1f} (+{t_stats['hp_regen']:.2f}/мин)\n"
+    text += f"🛡 {STAT_RU['m_shield']}: {t_stats['m_shield']:.1f} (восстанавливается каждый бой)\n"
     text += f"💧 {STAT_RU['mp']}: {player.stats['mp']:.1f}/{t_stats['max_mp']:.1f} (+{t_stats['mp_regen']:.2f}/мин)\n"
     text += f"⚔️ {STAT_RU['atk']}: {t_stats['atk']:.2f} | 🔮 {STAT_RU['magic_atk']}: {t_stats['magic_atk']:.2f}\n"
     text += f"🛡 {STAT_RU['def']}: {t_stats['def']:.2f} | 💠 {STAT_RU['magic_res']}: {t_stats['magic_res']:.2f}\n"
@@ -774,7 +789,12 @@ async def menu_train(query: CallbackQuery, callback_data: MenuCB):
     for i, stat in enumerate(stats[start:end], start=1):
         upgrades = player.stat_upgrades[stat]
         stat_name = STAT_RU.get(stat, stat)
-        text += f"{i}. <b>{stat_name}</b> (Улучшений: {upgrades})\n"
+        # Определяем прирост
+        if stat in ["atk_spd", "lifesteal", "thorns", "crit_chance", "crit_damage", "accuracy", "evasion_rating"]:
+            increment = "+0.01"
+        else:
+            increment = "+10%"
+        text += f"{i}. <b>{stat_name}</b> (улучшений: {upgrades}, прирост: {increment})\n"
         builder.button(text=f"{i}", callback_data=TrainCB(stat=stat).pack())
 
     builder.adjust(3)
@@ -862,19 +882,23 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
         result_msg += f"\n❤️ Осталось здоровья: {player.stats['hp']:.1f}/{t_stats['max_hp']:.1f}, 💧 маны: {player.stats['mp']:.1f}/{t_stats['max_mp']:.1f}"
 
         if is_win:
-            # Увеличиваем счётчик убийств ДО выдачи награды, чтобы гарантированно сохранить
+            # Увеличиваем счётчик убийств
             kills = player.kills_per_difficulty.get(player.current_difficulty, 0)
             player.kills_per_difficulty[player.current_difficulty] = kills + 1
 
-            base_gold = 10 + (player.current_difficulty * 5)
+            # Золото: теперь 10 * уровень угрозы
+            base_gold = 10 * player.current_difficulty
             actual_gold = int(base_gold * enemy['power_mult'] * player.stats["drop_chance"])
             player.gold += actual_gold
             result_msg += f"\n💰 Найдено золота: {actual_gold}."
 
+            # Предмет с учётом drop_chance
             drop_chance_scaled = 0.2 * enemy['power_mult'] * player.stats["drop_chance"]
             if random.random() < drop_chance_scaled:
+                # эффективная сложность предмета увеличивается от drop_chance
+                eff_diff = max(1, int(player.current_difficulty * player.stats["drop_chance"]))
+                item = generate_item(eff_diff)
                 if len(player.inventory) < player.inv_slots:
-                    item = generate_item(player.current_difficulty)
                     player.inventory.append(item)
                     result_msg += f"\n📦 Выпал предмет: {item['name']}"
                 else:
@@ -1003,7 +1027,6 @@ async def view_item(query: CallbackQuery, callback_data: ItemCB):
         s_ru = STAT_RU.get(stat_key, stat_key)
         bonus_type = stat_data.get('bonus_type', 'flat')
         bonus_symbol = '%' if bonus_type == 'percent' else ''
-        # Округление до 2 знаков
         text += f"• {s_ru}: {stat_data['current']:.2f}{bonus_symbol} (база {stat_data['base']:.2f}{bonus_symbol}, улучшений: {stat_data['upgrades']}) - Улучшить: 💰 {upg_cost} (+{stat_data['base']:.2f}{bonus_symbol})\n"
         c_idx = 900 + ["weapon", "armor", "accessory"].index(slot_name) if is_equip else real_idx
         b.button(text=f"Улучшить {s_ru}", callback_data=ItemCB(action="upg", idx=c_idx, stat=stat_key).pack())
@@ -1098,7 +1121,6 @@ async def upg_item(query: CallbackQuery, callback_data: ItemCB):
         await save_player(player)
         await query.answer("Характеристика улучшена!")
 
-        # Сразу показываем обновлённый предмет
         await view_item(query, ItemCB(action="view", idx=callback_data.idx, stat=""))
     else:
         await query.answer("Недостаточно золота!", show_alert=True)
@@ -1142,7 +1164,7 @@ async def menu_shop(query: CallbackQuery, callback_data: MenuCB):
     b.adjust(3)
     b.row(InlineKeyboardButton(text="Обновить товары (💰 100)", callback_data=ShopCB(action="refresh").pack()))
     b.row(InlineKeyboardButton(text=f"Слот инвентаря (💰 {cost_slot})", callback_data=ShopCB(action="slot").pack()))
-    b.row(InlineKeyboardButton(text="Восстановить ХП/МП (💰 50)", callback_data=ShopCB(action="heal").pack()))
+    b.row(InlineKeyboardButton(text="Восстановить ХП/МП (💰 25)", callback_data=ShopCB(action="heal").pack()))
     b.row(InlineKeyboardButton(text="🔙 Назад", callback_data=MenuCB(action="profile").pack()))
 
     await safe_edit(query.message, text, reply_markup=b.as_markup())
@@ -1187,8 +1209,8 @@ async def process_shop(query: CallbackQuery, callback_data: ShopCB, state: FSMCo
         else:
             await query.answer("Недостаточно золота!", show_alert=True)
     elif act == "heal":
-        if player.gold >= 50:
-            player.gold -= 50
+        if player.gold >= 25:
+            player.gold -= 25
             player.stats['hp'] = get_total_stats(player)['max_hp']
             player.stats['mp'] = get_total_stats(player)['max_mp']
             await save_player(player)
