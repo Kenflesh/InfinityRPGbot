@@ -414,6 +414,8 @@ async def update_shop(difficulty, force=False):
 async def update_potion_shop(difficulty, force=False):
     now = time.time()
     async with db_lock:
+        if "potion_shop" not in db:
+            db["potion_shop"] = {"assortment": [], "last_update": 0}
         if force or now - db["potion_shop"]["last_update"] > CONFIG["time_potion_update"]:
             db["potion_shop"]["assortment"] = []
             for _ in range(5):
@@ -1300,3 +1302,4 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
+
