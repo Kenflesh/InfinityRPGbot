@@ -173,9 +173,15 @@ class Player:
         if not hasattr(p, 'difficulty'): p.difficulty = 1
         if not hasattr(p, 'last_regen_time'): p.last_regen_time = time.time()
         if not hasattr(p, 'percent_bonuses'): p.percent_bonuses = {}
+                # Поддержка старого названия shop_difficulty
+        if not hasattr(p, 'shop_rarity'):
+            if hasattr(p, 'shop_difficulty'):
+                p.shop_rarity = p.shop_difficulty
+            else:
+                p.shop_rarity = 1
+        # Удаляем старое поле, чтобы оно не мешало (опционально)
         if hasattr(p, 'shop_difficulty'):
-            p.shop_rarity = p.shop_difficulty
-        if not hasattr(p, 'shop_rarity'): p.shop_rarity = 1
+            del p.shop_difficulty
         if not hasattr(p, 'shop_assortment'): p.shop_assortment = []
         if not hasattr(p, 'shop_last_update'): p.shop_last_update = 0
         if not hasattr(p, 'potion_shop_level'): p.potion_shop_level = 0
@@ -829,7 +835,7 @@ async def menu_hunt(query: CallbackQuery, callback_data: MenuCB):
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     b = InlineKeyboardBuilder()
 
-    kills_on_current = player.kills_per_difficulty.get(player.current_difficulty, 0)
+    kills_on_current = player.kills_per_difficulty.get(str(player.current_difficulty), 0)
     kills_needed = KILLS_TO_UNLOCK_NEXT - kills_on_current if player.current_difficulty == player.max_unlocked_difficulty else 0
     next_unlock_info = ""
     if player.current_difficulty == player.max_unlocked_difficulty and kills_needed > 0:
@@ -883,8 +889,9 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
 
         if is_win:
             # Увеличиваем счётчик убийств
-            kills = player.kills_per_difficulty.get(player.current_difficulty, 0)
-            player.kills_per_difficulty[player.current_difficulty] = kills + 1
+            diff_str = str(player.current_difficulty)
+            kills = player.kills_per_difficulty.get(diff_str, 0)
+            player.kills_per_difficulty[diff_str] = kills + 1
 
             # Золото: теперь 10 * уровень угрозы
             base_gold = 10 * player.current_difficulty
@@ -1139,7 +1146,7 @@ async def menu_shop(query: CallbackQuery, callback_data: MenuCB):
 
     b.row(
         InlineKeyboardButton(text="◀️", callback_data=ShopCB(action="dec_rarity").pack()),
-        InlineKeyboardButton(text=f"{player.shop_rarity}", callback_data=ShopCB(action="set_rarity").pack()),
+        InlineKeyboardButton(text=f"Редкость: {player.shop_rarity}", callback_data=ShopCB(action="set_rarity").pack()),
         InlineKeyboardButton(text="▶️", callback_data=ShopCB(action="inc_rarity").pack())
     )
 
