@@ -1,456 +1,327 @@
-import asyncio
-import json
+import logging
 import random
 import time
-import uuid
+import asyncio
 import os
-from aiogram import Bot, Dispatcher, F, types
-from aiogram.filters import Command
-from aiogram.utils.keyboard import InlineKeyboardBuilder
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.constants import ParseMode
 
-# Вставь сюда токен своего бота
+# --- КОНФИГУРАЦИЯ ---
 TOKEN = os.getenv("BOT_TOKEN")
-bot = Bot(token=TOKEN)
-dp = Dispatcher()
 
-DATA_FILE = "users_data.json"
-users = {}
+# Настройка логирования
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Пункт 1: Словари для правильного отображения названий (чтобы текст не обрезался)
-STAT_NAMES_RU = {
-    "max_hp": "Макс. Здоровье",
-    "max_mana": "Макс. Мана",
-    "phys_atk": "Физ. Атаку",
-    "mag_atk": "Маг. Атаку",
-    "defense": "Защиту",
-    "speed": "Скорость",
-    "regen": "Регенерацию"
+# --- ДАННЫЕ ИГРЫ ---
+players = {}
+
+STATS_NAMES = {
+    "phys_atk": "Физ. Атака",
+    "mag_atk": "Маг. Атака",
+    "defense": "Защита",
+    "multi_hit": "Множитель",
+    "crit_chance": "Крит. Шанс",
+    "dodge": "Уклонение"
 }
 
-# --- РАБОТА С БАЗОЙ ДАННЫХ ---
-def load_data():
-    global users
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            users = json.load(f)
+# --- КЛАССЫ И ЛОГИКА ---
 
-def save_users():
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(users, f, ensure_ascii=False, indent=4)
+class Item:
+    def __init__(self, name, item_type):
+        self.id = random.randint(1000, 9999)
+        self.name = name
+        self.item_type = item_type  # 'weapon', 'armor', 'accessory'
+        self.stats = {}  # Текущие бонусы
+        self.base_stats = {}  # Базовые значения
+        self.upgrade_costs = {} # Рандомные базовые цены улучшения
+        self.upgrades = {}  # Количество улучшений
+        
+        self.generate_random_stats()
 
-def get_user(user_id):
-    uid = str(user_id)
-    if uid not in users:
-        users[uid] = {
-            "id": uid,
-            "gold": 100,
-            "stats": { # Базовые статы игрока
-                "max_hp": 100, "hp": 100,
-                "max_mana": 50, "mana": 50,
-                "phys_atk": 10, "mag_atk": 10,
-                "defense": 5, "speed": 10, "regen": 1
-            },
-            "inventory": [],
-            "wait_until": 0,
-            "wait_type": None,
-            "potion_shop": {"next_refresh": 0, "potions": []}
-        }
-    return users[uid]
+    def generate_random_stats(self):
+        # Шансы на количество статов (Пункт 7 исходного ТЗ)
+        num_stats = 1
+        for _ in range(4):
+            if random.random() < 0.25:
+                num_stats += 1
+            else:
+                break
+        
+        available_stats = list(STATS_NAMES.keys())
+        chosen_keys = random.sample(available_stats, min(num_stats, len(available_stats)))
+        
+        for key in chosen_keys:
+            base_val = random.randint(1, 5)
+            self.base_stats[key] = base_val
+            self.stats[key] = base_val
+            self.upgrades[key] = 0
+            self.upgrade_costs[key] = random.randint(50, 150)
 
-# --- ИГРОВЫЕ МЕХАНИКИ И ГЕНЕРАЦИЯ ---
+    def get_upgrade_price(self, stat_key):
+        return self.upgrade_costs[stat_key] * (self.upgrades[stat_key] + 1)
 
-def generate_item():
-    """Генерация предмета с учетом пунктов 2, 6 и 12"""
-    # Пункт 6: Шанс на статы: 1 стат = 100%, 2 стата = 25%, 3 = 6.25% и т.д. (до 5)
-    num_stats = 1
-    for _ in range(4): 
-        if random.random() <= 0.25:
-            num_stats += 1
+    def upgrade(self, stat_key):
+        self.upgrades[stat_key] += 1
+        self.stats[stat_key] += self.base_stats[stat_key]
+
+class Player:
+    def __init__(self, user_id, name):
+        self.user_id = user_id
+        self.name = name
+        self.level = 1
+        self.exp = 0
+        self.gold = 500
+        self.hp = 100
+        self.max_hp = 100
+        self.mana = 50
+        self.max_mana = 50
+        
+        self.inventory = []
+        self.equipped = {"weapon": None, "armor": None, "accessory": None}
+        
+        self.state = "idle"  # idle, training, dead, hunting
+        self.timer_end = 0
+
+    def get_total_stats(self):
+        total = {k: 0 for k in STATS_NAMES}
+        for slot in self.equipped.values():
+            if slot:
+                for stat, val in slot.stats.items():
+                    total[stat] += val
+        total["phys_atk"] += 5 + self.level
+        total["defense"] += 2 + self.level
+        return total
+
+# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
+
+def get_main_menu_kb():
+    keyboard = [
+        [InlineKeyboardButton("⚔️ Охота", callback_data="hunt_menu"), InlineKeyboardButton("🏋️ Тренировка", callback_data="train")],
+        [InlineKeyboardButton("🎒 Инвентарь", callback_data="inventory"), InlineKeyboardButton("🛒 Магазин", callback_data="shop")],
+        [InlineKeyboardButton("📊 Статистика", callback_data="stats")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+def get_item_desc(item):
+    desc = f"📦 *{item.name}* ({item.item_type})\n"
+    for k, v in item.stats.items():
+        base = item.base_stats[k]
+        upgrades = item.upgrades[k]
+        desc += f"• {STATS_NAMES[k]}: {v} (База: {base}, +{upgrades})\n"
+    return desc
+
+# --- ОБРАБОТЧИКИ ---
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id not in players:
+        players[user_id] = Player(user_id, update.effective_user.first_name)
+    
+    await update.message.reply_text(
+        f"Привет, {players[user_id].name}! Добро пожаловать в RPG мир.",
+        reply_markup=get_main_menu_kb()
+    )
+
+async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user_id = query.from_user.id
+    p = players.get(user_id)
+    if not p: return
+
+    if p.state in ["training", "dead"] and query.data not in ["check_time", "cancel_wait"]:
+        if time.time() >= p.timer_end:
+            p.state = "idle"
         else:
-            break
+            await query.answer("Вы еще заняты!")
+            return
 
-    stats_picked = random.sample(list(STAT_NAMES_RU.keys()), min(num_stats, len(STAT_NAMES_RU)))
-    item_stats = {}
-    
-    for stat in stats_picked:
-        # Пункт 12: Случайный тип прибавки (аддитивный или процентный)
-        is_percent = random.choice([True, False])
+    data = query.data
+
+    if data == "main_menu":
+        await query.edit_message_text("Главное меню:", reply_markup=get_main_menu_kb())
+
+    elif data == "stats":
+        s = p.get_total_stats()
+        text = (f"👤 *{p.name}* (Ур. {p.level})\n"
+                f"❤️ HP: {p.hp}/{p.max_hp}\n"
+                f"✨ MP: {p.mana}/{p.max_mana}\n"
+                f"💰 Золото: {p.gold}\n"
+                f"📖 Опыт: {p.exp}\n\n"
+                f"*Бонусы снаряжения:*\n")
+        for k, v in s.items():
+            text += f"{STATS_NAMES[k]}: {v}\n"
         
-        # Пункт 2: Рандомная базовая статистика и рандомный рост цены улучшения
-        base_val = random.randint(1, 5) if not is_percent else random.randint(2, 10)
-        item_stats[stat] = {
-            "base": base_val,
-            "level": 0,
-            "type": "percent" if is_percent else "flat",
-            "upgrade_cost": random.randint(10, 50),
-            "cost_mult": round(random.uniform(1.1, 2.0), 2)
-        }
+        kb = [[InlineKeyboardButton("Назад", callback_data="main_menu")]]
+        await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(kb))
+
+    elif data == "hunt_menu":
+        kb = [
+            [InlineKeyboardButton("Лес (Легко)", callback_data="fight_1")],
+            [InlineKeyboardButton("Пещера (Средне)", callback_data="fight_2")],
+            [InlineKeyboardButton("Замок (Сложно)", callback_data="fight_3")],
+            [InlineKeyboardButton("Назад", callback_data="main_menu")]
+        ]
+        await query.edit_message_text("Выберите сложность охоты:", reply_markup=InlineKeyboardMarkup(kb))
+
+    elif data.startswith("fight_"):
+        diff = int(data.split("_")[1])
+        p.mana = max(0, p.mana - 5)
+        enemy_hp = 20 * diff
+        enemy_atk = 3 * diff
+        logs = [f"⚔️ Начало боя! Ваша мана: {p.mana}/{p.max_mana}"]
         
-    return {
-        "id": str(uuid.uuid4()), 
-        "name": f"Снаряжение {random.randint(100, 999)}", 
-        "stats": item_stats
-    }
-
-def generate_potions():
-    """Пункт 10: Генерация зелий для лавки"""
-    potions = []
-    for _ in range(5):
-        stat = random.choice(list(STAT_NAMES_RU.keys()))
-        value = random.randint(1, 5)
-        price = random.randint(100, 1000)
-        potions.append({"stat": stat, "value": value, "price": price})
-    return potions
-
-def calc_stat(user, stat_name):
-    """Высчитывает итоговый стат игрока (База + Плоские предметы) * Процентные предметы"""
-    base = user["stats"].get(stat_name, 0)
-    total_flat = base
-    total_percent = 1.0
-    
-    # Считаем, что все предметы в инвентаре надеты (для примера, можно добавить систему экипировки)
-    for item in user["inventory"]:
-        if stat_name in item["stats"]:
-            s_data = item["stats"][stat_name]
-            # Пункт 2: Прибавляется базовая характеристика за каждое улучшение (base + base*level)
-            val = s_data["base"] * (s_data["level"] + 1)
+        p_stats = p.get_total_stats()
+        
+        while enemy_hp > 0 and p.hp > 0:
+            dmg = max(1, p_stats["phys_atk"] - (diff * 2))
+            enemy_hp -= dmg
+            logs.append(f"Вы ударили монстра на {dmg}. (Осталось: {enemy_hp})")
+            if enemy_hp <= 0: break
             
-            # Пункт 12: Обработка аддитивной и процентной прибавки
-            if s_data["type"] == "flat":
-                total_flat += val
-            elif s_data["type"] == "percent":
-                total_percent += (val / 100.0)
-                
-    return int(total_flat * total_percent)
+            e_dmg = max(1, enemy_atk - p_stats["defense"] // 2)
+            p.hp -= e_dmg
+            logs.append(f"Монстр ударил вас на {e_dmg}. (Ваше HP: {p.hp})")
+            
+        if p.hp <= 0:
+            p.state = "dead"
+            p.timer_end = time.time() + 60
+            p.hp = 0
+            await query.edit_message_text("💀 Вы погибли! Ожидайте воскрешения (1 мин).", 
+                                         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Проверить время", callback_data="check_time")]]))
+        else:
+            gold_gain = 20 * diff
+            exp_gain = 15 * diff
+            p.gold += gold_gain
+            p.exp += exp_gain
+            logs.append(f"\n✅ Победа! +{gold_gain}💰, +{exp_gain}📖")
+            logs.append(f"Ваше HP: {p.hp}/{p.max_hp}, Мана: {p.mana}/{p.max_mana}")
+            
+            kb = [[InlineKeyboardButton("Продолжить охоту", callback_data="hunt_menu")],
+                  [InlineKeyboardButton("В город", callback_data="main_menu")]]
+            await query.edit_message_text("\n".join(logs), reply_markup=InlineKeyboardMarkup(kb))
 
-# --- КЛАВИАТУРЫ (МЕНЮ) ---
+    elif data == "train":
+        p.state = "training"
+        p.timer_end = time.time() + 30
+        kb = [[InlineKeyboardButton("Проверить время", callback_data="check_time")],
+              [InlineKeyboardButton("Отменить", callback_data="cancel_wait")]]
+        await query.edit_message_text("🏋️ Вы тренируетесь... (30 сек)", reply_markup=InlineKeyboardMarkup(kb))
 
-def main_menu_kb():
-    kb = InlineKeyboardBuilder()
-    kb.button(text="⚔️ Охота", callback_data="menu_hunt")
-    kb.button(text="🎒 Инвентарь", callback_data="menu_inventory")
-    kb.button(text="🏋️ Тренировка", callback_data="menu_training")
-    kb.button(text="🧪 Лавка Зелий", callback_data="menu_potions")
-    kb.adjust(2, 2)
-    return kb.as_markup()
+    elif data == "check_time":
+        rem = int(p.timer_end - time.time())
+        if rem <= 0:
+            p.state = "idle"
+            if p.hp <= 0: p.hp = p.max_hp
+            await query.answer("Время вышло! Вы свободны.")
+            await query.edit_message_text("Действие завершено. Вы вернулись в город.", reply_markup=get_main_menu_kb())
+        else:
+            await query.answer(f"Осталось: {rem} сек.", show_alert=True)
 
-def hunt_menu_kb():
-    kb = InlineKeyboardBuilder()
-    for i in range(1, 4):
-        kb.button(text=f"Сложность {i}", callback_data=f"hunt_{i}")
-    kb.button(text="🔙 Назад", callback_data="main_menu")
-    kb.adjust(1)
-    return kb.as_markup()
+    elif data == "cancel_wait":
+        if p.state == "dead":
+            await query.answer("Смерть нельзя отменить!")
+        else:
+            p.state = "idle"
+            await query.answer("Ожидание отменено.")
+            await query.edit_message_text("Главное меню:", reply_markup=get_main_menu_kb())
 
-# --- ФОНОВЫЕ ЗАДАЧИ И ОЖИДАНИЕ ---
+    elif data == "shop":
+        kb = [
+            [InlineKeyboardButton(f"Купить Оружие (100💰)", callback_data="buy_weapon")],
+            [InlineKeyboardButton(f"Купить Броню (100💰)", callback_data="buy_armor")],
+            [InlineKeyboardButton("Назад", callback_data="main_menu")]
+        ]
+        await query.edit_message_text(f"🛒 Магазин (Ваше золото: {p.gold})\nНовые предметы имеют случайные базовые характеристики!", reply_markup=InlineKeyboardMarkup(kb))
 
-async def start_wait(user_id, duration, wait_type, msg_text="Ожидание..."):
-    """Универсальная функция ожидания с асинхронной задержкой"""
-    user = get_user(user_id)
-    user["wait_until"] = time.time() + duration
-    user["wait_type"] = wait_type
-    save_users()
+    elif data.startswith("buy_"):
+        if p.gold >= 100:
+            p.gold -= 100
+            t = data.split("_")[1]
+            names = {"weapon": "Меч", "armor": "Доспех"}
+            new_item = Item(names[t], t)
+            p.inventory.append(new_item)
+            await query.answer(f"Куплен {new_item.name}!")
+            await query.edit_message_text(f"Вы купили {new_item.name}.\n\n{get_item_desc(new_item)}", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_menu_kb())
+        else:
+            await query.answer("Недостаточно золота!")
 
-    # Пункт 5: Кнопка проверки времени и отсутствие отмены у смерти
-    kb = InlineKeyboardBuilder()
-    kb.button(text="⏳ Проверить время", callback_data="wait_check")
-    if wait_type != "death":
-        kb.button(text="❌ Отменить", callback_data="wait_cancel")
-    kb.adjust(1)
+    elif data == "inventory":
+        if not p.inventory:
+            await query.edit_message_text("Сумка пуста.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Назад", callback_data="main_menu")]]))
+            return
+        kb = []
+        for i, item in enumerate(p.inventory):
+            eq = " (Надето)" if item in p.equipped.values() else ""
+            kb.append([InlineKeyboardButton(f"{item.name}{eq}", callback_data=f"item_{i}")])
+        kb.append([InlineKeyboardButton("Назад", callback_data="main_menu")])
+        await query.edit_message_text("Ваши вещи:", reply_markup=InlineKeyboardMarkup(kb))
 
-    await bot.send_message(user_id, msg_text, reply_markup=kb.as_markup())
-    
-    await asyncio.sleep(duration)
-    
-    # Проверяем, не отменил ли игрок ожидание раньше времени
-    user = get_user(user_id)
-    if user["wait_until"] > 0 and user["wait_until"] <= time.time():
-        user["wait_until"] = 0
-        user["wait_type"] = None
-        if wait_type == "death":
-            user["stats"]["hp"] = calc_stat(user, "max_hp") # Воскрешение
-        save_users()
-        # Пункт 5: Открывать главное меню после завершения ожидания
-        await bot.send_message(user_id, "✅ Ожидание завершено!", reply_markup=main_menu_kb())
+    elif data.startswith("item_"):
+        idx = int(data.split("_")[1])
+        item = p.inventory[idx]
+        text = get_item_desc(item)
+        text += f"\n💰 Ваше золото: {p.gold}"
+        
+        kb = []
+        if p.equipped[item.item_type] == item:
+            kb.append([InlineKeyboardButton("Снять", callback_data=f"unequip_{idx}")])
+        else:
+            kb.append([InlineKeyboardButton("Надеть", callback_data=f"equip_{idx}")])
+        
+        # Исправление бага с обрезанием названий и лишними точками
+        for s_key in item.stats.keys():
+            cost = item.get_upgrade_price(s_key)
+            # Убираем слово "Улучшить" из самой кнопки, чтобы влезло полное название стата
+            btn_text = f"🔼 {STATS_NAMES[s_key]} ({cost}💰)"
+            kb.append([InlineKeyboardButton(btn_text, callback_data=f"upg_{idx}_{s_key}")])
+            
+        kb.append([InlineKeyboardButton("Назад в сумку", callback_data="inventory")])
+        await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(kb))
 
-def is_waiting(user):
-    return user["wait_until"] > time.time()
+    elif data.startswith("upg_"):
+        parts = data.split("_")
+        idx = int(parts[1])
+        s_key = "_".join(parts[2:]) # Корректно собираем ключ, если в нем есть подчеркивания
+        item = p.inventory[idx]
+        cost = item.get_upgrade_price(s_key)
+        
+        if p.gold >= cost:
+            p.gold -= cost
+            item.upgrade(s_key)
+            await query.answer("Успешно улучшено!")
+            # Обновляем меню этого же предмета
+            await handle_buttons(update, context) 
+        else:
+            await query.answer(f"Нужно {cost} золота!")
 
-# --- ОБРАБОТЧИКИ СООБЩЕНИЙ ---
+    elif data.startswith("equip_"):
+        idx = int(data.split("_")[1])
+        item = p.inventory[idx]
+        p.equipped[item.item_type] = item
+        await query.answer("Экипировано!")
+        await handle_buttons(update, context)
 
-@dp.message(Command("start"))
-async def cmd_start(message: types.Message):
-    get_user(message.from_user.id)
-    await message.answer("Добро пожаловать в текстовую RPG!", reply_markup=main_menu_kb())
+    elif data.startswith("unequip_"):
+        idx = int(data.split("_")[1])
+        item = p.inventory[idx]
+        p.equipped[item.item_type] = None
+        await query.answer("Снято!")
+        await handle_buttons(update, context)
 
-# Пункт 13: Команды удаления сохранений и выдачи золота
-@dp.message(Command("destroysave"))
-async def cmd_destroysave(message: types.Message):
-    uid = str(message.from_user.id)
-    if uid in users:
-        del users[uid]
-        save_users()
-        await message.answer("🗑 Ваше сохранение удалено. Нажмите /start для новой игры.")
-
-@dp.message(Command("givegold"))
-async def cmd_givegold(message: types.Message):
-    user = get_user(message.from_user.id)
-    user["gold"] += 10000
-    save_users()
-    await message.answer("💰 Вам выдано 10000 золота!")
-
-# --- ОБРАБОТЧИКИ CALLBACK (КНОПОК) ---
-
-@dp.callback_query(F.data == "wait_check")
-async def wait_check(callback: types.CallbackQuery):
-    user = get_user(callback.from_user.id)
-    if user["wait_until"] > time.time():
-        left = int(user["wait_until"] - time.time())
-        await callback.answer(f"Осталось ждать: {left} сек.", show_alert=True)
-    else:
-        await callback.answer("Ожидание окончено!", show_alert=True)
-
-@dp.callback_query(F.data == "wait_cancel")
-async def wait_cancel(callback: types.CallbackQuery):
-    user = get_user(callback.from_user.id)
-    if user["wait_type"] == "death":
-        await callback.answer("Смерть нельзя отменить!", show_alert=True)
+def main():
+    if not TOKEN:
+        print("Ошибка: Токен не найден в переменных окружения.")
         return
-    user["wait_until"] = 0
-    user["wait_type"] = None
-    save_users()
-    await callback.message.edit_text("❌ Ожидание отменено.", reply_markup=main_menu_kb())
 
-@dp.callback_query(F.data == "main_menu")
-async def go_main_menu(callback: types.CallbackQuery):
-    if is_waiting(get_user(callback.from_user.id)): return await callback.answer("Вы заняты!")
-    await callback.message.edit_text("Главное меню", reply_markup=main_menu_kb())
+    application = Application.builder().token(TOKEN).build()
 
-# --- БОЕВКА (ОХОТА) ---
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(handle_buttons))
 
-@dp.callback_query(F.data == "menu_hunt")
-async def menu_hunt(callback: types.CallbackQuery):
-    if is_waiting(get_user(callback.from_user.id)): return await callback.answer("Вы заняты!")
-    await callback.message.edit_text("Выбери сложность охоты:", reply_markup=hunt_menu_kb())
-
-@dp.callback_query(F.data.startswith("hunt_"))
-async def process_hunt(callback: types.CallbackQuery):
-    user = get_user(callback.from_user.id)
-    if is_waiting(user): return await callback.answer("Вы заняты!")
-    
-    diff = int(callback.data.split("_")[1])
-    
-    player_max_hp = calc_stat(user, "max_hp")
-    player_hp = user["stats"]["hp"]
-    player_mana = user["stats"]["mana"]
-    player_max_mana = calc_stat(user, "max_mana")
-    player_atk = calc_stat(user, "phys_atk")
-    
-    enemy_hp = 30 * diff
-    enemy_atk = 5 * diff
-    
-    log = f"⚔️ Вы отправились на охоту (Сложность: {diff})\n"
-    # Пункт 3: Отображение маны в начале битвы
-    log += f"🧙‍♂️ Ваша Мана: {player_mana}/{player_max_mana}\n\n"
-    
-    while player_hp > 0 and enemy_hp > 0:
-        # Пункт 14: Рандомизация физ урона в 20%
-        actual_dmg = int(player_atk * random.uniform(0.8, 1.2))
-        enemy_hp -= actual_dmg
-        log += f"🗡 Вы нанесли {actual_dmg} урона. (У врага {max(0, enemy_hp)} ХП)\n"
-        if enemy_hp <= 0: break
-        
-        player_hp -= enemy_atk
-        log += f"👹 Враг нанес {enemy_atk} урона.\n"
-        
-    user["stats"]["hp"] = max(0, player_hp)
-    
-    log += "\n"
-    if player_hp > 0:
-        # Пункт 11: Увеличенная награда золота в зависимости от сложности
-        reward = 10 + (diff * 5)
-        user["gold"] += reward
-        log += f"🏆 Вы победили! Награда: {reward} золота.\n"
-        
-        if random.random() < 0.6: # 60% шанс дропа
-            item = generate_item()
-            user["inventory"].append(item)
-            log += f"🎁 Получен предмет: {item['name']}\n"
-            
-        # Пункт 3: Здоровье и мана после логов битвы
-        log += f"\n❤️ Осталось здоровья: {player_hp}/{player_max_hp}\n"
-        log += f"🧙‍♂️ Осталось маны: {player_mana}/{player_max_mana}\n"
-        save_users()
-        
-        # Пункт 4: Оставление игрока на меню выбора сложности после победы
-        await callback.message.edit_text(log, reply_markup=hunt_menu_kb())
-    else:
-        log += f"💀 Вы погибли.\n"
-        log += f"❤️ Осталось здоровья: 0/{player_max_hp}\n"
-        log += f"🧙‍♂️ Осталось маны: {player_mana}/{player_max_mana}\n"
-        await callback.message.edit_text(log)
-        asyncio.create_task(start_wait(callback.from_user.id, 60, "death", "💀 Вы мертвы. Воскрешение 60 секунд."))
-
-# --- ИНВЕНТАРЬ И УЛУЧШЕНИЕ ---
-
-@dp.callback_query(F.data == "menu_inventory")
-async def menu_inv(callback: types.CallbackQuery):
-    user = get_user(callback.from_user.id)
-    if is_waiting(user): return await callback.answer("Вы заняты!")
-    
-    kb = InlineKeyboardBuilder()
-    for item in user["inventory"]:
-        kb.button(text=item["name"], callback_data=f"item_{item['id']}")
-    kb.button(text="🔙 Назад", callback_data="main_menu")
-    kb.adjust(1)
-    
-    await callback.message.edit_text(f"🎒 Ваш инвентарь:\n💰 Золото: {user['gold']}", reply_markup=kb.as_markup())
-
-@dp.callback_query(F.data.startswith("item_"))
-async def view_item(callback: types.CallbackQuery):
-    user = get_user(callback.from_user.id)
-    item_id = callback.data.split("_")[1]
-    item = next((i for i in user["inventory"] if i["id"] == item_id), None)
-    if not item: return await callback.answer("Предмет не найден!")
-
-    # Пункт 7: Отображение золота в меню предмета
-    text = f"🗡 **{item['name']}**\n💰 Ваше золото: {user['gold']}\n\n📊 Статистика:\n"
-    
-    kb = InlineKeyboardBuilder()
-    for stat_key, stat_data in item["stats"].items():
-        # Пункт 1: Правильное форматирование текста (без обрезаний)
-        stat_name = STAT_NAMES_RU.get(stat_key, stat_key)
-        
-        # Пункт 2: Показ базовой статистики и текущей силы
-        cur_val = stat_data["base"] * (stat_data["level"] + 1)
-        type_sym = "%" if stat_data["type"] == "percent" else ""
-        text += f"🔸 {stat_name}: {cur_val}{type_sym} (База: {stat_data['base']}{type_sym}, Ур. {stat_data['level']})\n"
-        
-        # Пункт 9: Отображение роста цены и прибавки характеристики
-        cost = int(stat_data["upgrade_cost"])
-        growth = stat_data["cost_mult"]
-        btn_text = f"Улучшить {stat_name} (+{stat_data['base']}{type_sym}) | {cost} з. (Рост: x{growth})"
-        kb.button(text=btn_text, callback_data=f"upg_{item_id}_{stat_key}")
-        
-    kb.button(text="🔙 В инвентарь", callback_data="menu_inventory")
-    kb.adjust(1)
-    
-    await callback.message.edit_text(text, reply_markup=kb.as_markup())
-
-@dp.callback_query(F.data.startswith("upg_"))
-async def upgrade_item(callback: types.CallbackQuery):
-    user = get_user(callback.from_user.id)
-    _, item_id, stat_key = callback.data.split("_", 2)
-    item = next((i for i in user["inventory"] if i["id"] == item_id), None)
-    if not item: return
-
-    stat_data = item["stats"][stat_key]
-    cost = int(stat_data["upgrade_cost"])
-
-    if user["gold"] >= cost:
-        user["gold"] -= cost
-        stat_data["level"] += 1
-        stat_data["upgrade_cost"] = int(cost * stat_data["cost_mult"])
-        save_users()
-        
-        # Пункт 8: Обновление сообщения на месте (не перекидываем в инвентарь)
-        await view_item(callback) # Просто вызываем функцию перерисовки текущего меню предмета
-    else:
-        await callback.answer("Недостаточно золота!", show_alert=True)
-
-# --- ТРЕНИРОВКИ И ЛАВКА (Пункт 10 и 15) ---
-
-@dp.callback_query(F.data == "menu_training")
-async def menu_training(callback: types.CallbackQuery):
-    user = get_user(callback.from_user.id)
-    if is_waiting(user): return await callback.answer("Вы заняты!")
-    
-    # Пункт 10: Тренировки стали бесплатными
-    text = "🏋️ **Тренировочный лагерь**\nТренировки бесплатны, но занимают 30 секунд. Выберите стат для улучшения:"
-    
-    kb = InlineKeyboardBuilder()
-    # Пункт 15: Убраны hp и mana, оставлены только max_hp и max_mana
-    trainable_stats = ["max_hp", "max_mana", "phys_atk", "mag_atk", "defense"]
-    for stat in trainable_stats:
-        kb.button(text=f"Тренировать {STAT_NAMES_RU[stat]}", callback_data=f"train_{stat}")
-    kb.button(text="🔙 Назад", callback_data="main_menu")
-    kb.adjust(1)
-    
-    await callback.message.edit_text(text, reply_markup=kb.as_markup())
-
-@dp.callback_query(F.data.startswith("train_"))
-async def process_train(callback: types.CallbackQuery):
-    stat = callback.data.split("_", 1)[1]
-    user = get_user(callback.from_user.id)
-    
-    user["stats"][stat] += 1
-    save_users()
-    
-    asyncio.create_task(start_wait(callback.from_user.id, 30, "train", f"🏋️ Вы тренируете {STAT_NAMES_RU[stat]}..."))
-    await callback.message.delete()
-
-@dp.callback_query(F.data == "menu_potions")
-async def menu_potions(callback: types.CallbackQuery):
-    user = get_user(callback.from_user.id)
-    if is_waiting(user): return await callback.answer("Вы заняты!")
-    
-    shop = user["potion_shop"]
-    # Пункт 10: Обновление лавки каждые 10 минут
-    if time.time() >= shop["next_refresh"] or not shop["potions"]:
-        shop["potions"] = generate_potions()
-        shop["next_refresh"] = time.time() + 600
-        save_users()
-
-    text = f"🧪 **Лавка Зелий**\n💰 Ваше золото: {user['gold']}\nОбновление через: {int(shop['next_refresh'] - time.time())} сек.\n\nЗелья навсегда повышают ваши базовые характеристики!"
-
-    kb = InlineKeyboardBuilder()
-    for i, pot in enumerate(shop["potions"]):
-        stat_name = STAT_NAMES_RU.get(pot["stat"])
-        kb.button(text=f"+{pot['value']} {stat_name} | {pot['price']} з.", callback_data=f"buy_pot_{i}")
-
-    kb.button(text="🔄 Обновить ассортимент (500 з.)", callback_data="refresh_potions")
-    kb.button(text="🔙 Назад", callback_data="main_menu")
-    kb.adjust(1)
-
-    await callback.message.edit_text(text, reply_markup=kb.as_markup())
-
-@dp.callback_query(F.data == "refresh_potions")
-async def refresh_potions(callback: types.CallbackQuery):
-    user = get_user(callback.from_user.id)
-    if user["gold"] >= 500:
-        user["gold"] -= 500
-        user["potion_shop"]["potions"] = generate_potions()
-        user["potion_shop"]["next_refresh"] = time.time() + 600
-        save_users()
-        await menu_potions(callback)
-    else:
-        await callback.answer("Недостаточно золота для обновления!", show_alert=True)
-
-@dp.callback_query(F.data.startswith("buy_pot_"))
-async def buy_potion(callback: types.CallbackQuery):
-    user = get_user(callback.from_user.id)
-    pot_idx = int(callback.data.split("_")[2])
-    potions = user["potion_shop"]["potions"]
-    
-    if pot_idx >= len(potions): return await callback.answer("Зелье уже куплено!")
-    
-    pot = potions[pot_idx]
-    if user["gold"] >= pot["price"]:
-        user["gold"] -= pot["price"]
-        user["stats"][pot["stat"]] += pot["value"]
-        potions.pop(pot_idx) # Удаляем купленное зелье
-        save_users()
-        await callback.answer(f"Вы выпили зелье! {STAT_NAMES_RU[pot['stat']]} +{pot['value']}", show_alert=True)
-        await menu_potions(callback)
-    else:
-        await callback.answer("Недостаточно золота!", show_alert=True)
-
-
-async def main():
-    load_data()
-    print("Бот запущен. Нажмите Ctrl+C для остановки.")
-    await dp.start_polling(bot)
+    print("Бот запущен...")
+    application.run_polling()
 
 if __name__ == "__main__":
-    asyncio.run(main())
-
+    main()
