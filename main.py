@@ -1247,6 +1247,7 @@ def simulate_combat_realtime(player, enemy):
                     if random.random()*100 > get_evasion_chance(e_stats["accuracy"], p_stats["evasion_rating"]):
                         if random.random()*100 < e_stats["crit_chance"]:
                             dmg = int(dmg * (e_stats["crit_damage"]/100.0))
+                        # Щит игрока
                         if current_shield>0:
                             absorbed = min(dmg, current_shield)
                             current_shield -= absorbed
@@ -1254,6 +1255,18 @@ def simulate_combat_realtime(player, enemy):
                         if dmg>0:
                             p_stats["hp"] -= dmg
                             log.append(f"[{time_elapsed:.1f}с] 😡 Враг нанёс вам {dmg} урона")
+                            # Шипы игрока (ответный урон)
+                            if p_stats["thorns"] > 0:
+                                th = dmg * (p_stats["thorns"] / 100.0)
+                                if enemy_shield > 0:
+                                    absorbed = min(th, enemy_shield)
+                                    enemy_shield -= absorbed
+                                    th -= absorbed
+                                if th > 0:
+                                    if th < 1:
+                                        th = 1
+                                    e_stats["hp"] -= th
+                                    log.append(f"[{time_elapsed:.1f}с] 🌵 Ваши шипы нанесли врагу {th:.1f} урона")
                     else:
                         log.append(f"[{time_elapsed:.1f}с] 🌀 Вы уклонились")
 
