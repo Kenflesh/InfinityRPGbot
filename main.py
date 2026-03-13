@@ -878,17 +878,13 @@ def generate_enemy(difficulty):
                  "magic_crit_chance", "magic_crit_damage", "magic_shield_drain", "m_shield"]:
         base = CONFIG["enemy_base_stats"].get(stat, 0)
         scale = CONFIG["enemy_stat_scale"].get(stat, 0)
-        val = (base + difficulty * scale) * \
-            variance() * class_mult.get(stat, 1.0)
+        val = (base + difficulty * scale) * variance() * class_mult.get(stat, 1.0)
         if stat in ["hp", "atk", "def", "magic_atk", "magic_res", "magic_crit_chance", "magic_crit_damage"]:
-            e_stats[stat] = max(0, int(val)) if stat not in [
-                "magic_crit_chance", "magic_crit_damage"] else max(0, val)
+            e_stats[stat] = max(0, int(val)) if stat not in ["magic_crit_chance", "magic_crit_damage"] else max(0, val)
         else:
             e_stats[stat] = max(0, val)
 
-    e_stats["atk_spd"] = max(0.05, (CONFIG["enemy_base_stats"]["atk_spd"] + difficulty *
-                             CONFIG["enemy_stat_scale"]["atk_spd"]) * variance() * class_mult.get("atk_spd", 1.0))
-    # После расчёта e_stats["max_mp"]:
+    e_stats["atk_spd"] = max(0.05, (CONFIG["enemy_base_stats"]["atk_spd"] + difficulty * CONFIG["enemy_stat_scale"]["atk_spd"]) * variance() * class_mult.get("atk_spd", 1.0))
     e_stats["max_mp"] = max(20, int(difficulty * 15))
     e_stats["mp"] = e_stats["max_mp"]
 
@@ -910,14 +906,11 @@ def generate_enemy(difficulty):
         else:
             spell_count = 0
 
+    for _ in range(spell_count):
+        spell = generate_spell(class_key, difficulty, e_stats["max_mp"], force_min_effects=1)
+        spells.append(spell)
 
-for _ in range(spell_count):
-    spell = generate_spell(class_key, difficulty,
-                           e_stats["max_mp"], force_min_effects=1)
-    spells.append(spell)
-
-    norm_hp = CONFIG["enemy_base_stats"]["hp"] + \
-        (difficulty * CONFIG["enemy_stat_scale"]["hp"])
+    norm_hp = CONFIG["enemy_base_stats"]["hp"] + (difficulty * CONFIG["enemy_stat_scale"]["hp"])
     power_multiplier = e_stats["hp"] / (norm_hp if norm_hp > 0 else 1)
 
     names = {
