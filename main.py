@@ -39,25 +39,34 @@ STAT_RU = {
     "magic_atk": "Маг. Атака", "magic_res": "Маг. Сопротивление", "thorns": "Шипы"
 }
 
+STAT_EMOJI = {
+    "max_hp": "❤️", "hp": "❤️", "max_mp": "💧", "mp": "💧",
+    "atk": "🗡️", "def": "🛡️", "m_shield": "✨",
+    "crit_chance": "💥", "crit_damage": "💢", "accuracy": "🎯", "evasion_rating": "💨",
+    "atk_spd": "⚡", "hp_regen": "🩹", "mp_regen": "🔮",
+    "drop_chance": "🍀", "lifesteal": "🦇", "armor_pen": "🪓",
+    "magic_atk": "🔮", "magic_res": "🌀", "thorns": "🌵"
+}
+
 TRAINING_INCREMENTS = {
     "max_hp": 1.0,
     "max_mp": 1.0,
     "atk": 0.1,
     "def": 0.1,
-    "m_shield": 0.1,
-    "crit_chance": 0.01,
+    "m_shield": 0.5,
+    "crit_chance": 0.02,
     "crit_damage": 0.5,
     "accuracy": 0.05,
     "evasion_rating": 0.05,
     "atk_spd": 0.005,
-    "hp_regen": 0.01,
-    "mp_regen": 0.01,
-    "drop_chance": 0.001,
-    "lifesteal": 0.001,
+    "hp_regen": 0.02,
+    "mp_regen": 0.02,
+    "drop_chance": 0.002,
+    "lifesteal": 0.002,
     "armor_pen": 0.05,
     "magic_atk": 0.1,
     "magic_res": 0.1,
-    "thorns": 0.001
+    "thorns": 0.02
 }
 
 PREFIXES = ["Свирепый", "Древний", "Пылающий", "Забытый", "Проклятый", "Святой", "Теневой", "Искрящийся", "Тяжелый", "Легкий"]
@@ -69,18 +78,18 @@ NOUNS = {
 SUFFIXES = ["Убийцы", "Короля", "Гоблина", "Дракона", "Света", "Тьмы", "Крови", "Ветров", "Пустоты", "Жизни"]
 
 CONFIG = {
-    "time_train": 60,
-    "time_death": 900,
-    "time_expedition": 600,
-    "time_shop_update": 600,
-    "time_potion_update": 600,
+    "time_train": 10,
+    "time_death": 600,
+    "time_expedition": 300,
+    "time_shop_update": 300,
+    "time_potion_update": 300,
 
     "enemy_base_stats": {
-        "hp": 25, "atk": 5, "def": 2, "atk_spd": 0.2, "accuracy": 20, "evasion_rating": 10,
+        "hp": 10, "atk": 5, "def": 2, "atk_spd": 0.1, "accuracy": 20, "evasion_rating": 10,
         "magic_atk": 0, "magic_res": 0
     },
     "enemy_stat_scale": {
-        "hp": 25, "atk": 5, "def": 1, "atk_spd": 0.02, "accuracy": 2.5, "evasion_rating": 0.05,
+        "hp": 25, "atk": 5, "def": 1, "atk_spd": 0.02, "accuracy": 1.0, "evasion_rating": 0.05,
         "magic_atk": 1.5, "magic_res": 0.5
     }
 }
@@ -90,6 +99,7 @@ KILLS_TO_UNLOCK_NEXT = 5
 class Form(StatesGroup):
     waiting_for_difficulty = State()
     waiting_for_shop_rarity = State()
+    waiting_for_sell_price = State()   # для массовой продажи по цене
 
 class MenuCB(CallbackData, prefix="menu"):
     action: str
@@ -121,6 +131,9 @@ class SkillCB(CallbackData, prefix="sk"):
 class PotionCB(CallbackData, prefix="pot"):
     action: str
     idx: int = 0
+
+class SellMassCB(CallbackData, prefix="sellmass"):
+    action: str   # "all", "price", "menu"
 
 async def load_db():
     global db
@@ -158,7 +171,7 @@ class Player:
             "max_hp": 100, "hp": 100, "max_mp": 50, "mp": 50,
             "atk": 10, "def": 5, "m_shield": 0,
             "crit_chance": 5.0, "crit_damage": 200.0, "accuracy": 20.0, "evasion_rating": 5.0,
-            "atk_spd": 0.3,
+            "atk_spd": 0.15,
             "hp_regen": 1.0, "mp_regen": 1.0, "drop_chance": 1.0,
             "lifesteal": 0.0, "armor_pen": 0, "magic_atk": 0, "magic_res": 0, "thorns": 0.0
         }
@@ -194,13 +207,11 @@ class Player:
         if not hasattr(p, 'difficulty'): p.difficulty = 1
         if not hasattr(p, 'last_regen_time'): p.last_regen_time = time.time()
         if not hasattr(p, 'percent_bonuses'): p.percent_bonuses = {}
-                # Поддержка старого названия shop_difficulty
         if not hasattr(p, 'shop_rarity'):
             if hasattr(p, 'shop_difficulty'):
                 p.shop_rarity = p.shop_difficulty
             else:
                 p.shop_rarity = 1
-        # Удаляем старое поле, чтобы оно не мешало (опционально)
         if hasattr(p, 'shop_difficulty'):
             del p.shop_difficulty
         if not hasattr(p, 'shop_assortment'): p.shop_assortment = []
@@ -262,7 +273,7 @@ async def background_worker():
                     elif player.state == 'training':
                         stat = player.training_stat
 
-                        increment = TRAINING_INCREMENTS.get(stat, 0.01)  # значение по умолчанию
+                        increment = TRAINING_INCREMENTS.get(stat, 0.01)
                         player.stats[stat] += increment
                         player.stat_upgrades[stat] += 1
                         player.state = 'idle'
@@ -279,10 +290,9 @@ async def background_worker():
                         player.gold += gold_found
                         msg = f"🧭 Экспедиция завершена!\nВы нашли: 💰 {gold_found} золота."
 
-                        drop_chance = 0.4 * player.stats["drop_chance"]
+                        drop_chance = 0.4
                         items_found = 0
                         while random.random() < drop_chance and items_found < 3:
-                            # Используем эффективную сложность с учётом drop_chance
                             eff_diff = max(1, int(player.difficulty * player.stats["drop_chance"]))
                             item = generate_item(eff_diff)
                             if len(player.inventory) < player.inv_slots:
@@ -346,12 +356,10 @@ def generate_item(rarity):
         mult = stat_mult.get(stat, 1.0)
 
         raw = (rarity * 0.25 * random.uniform(0.8, 1.2)) * mult
-        # Статы, которые должны оставаться целыми (не меньше 1)
         integer_stats = ["atk", "def", "max_hp", "max_mp", "magic_atk", "magic_res", "armor_pen"]
         if stat in integer_stats:
             base_val = max(1, int(raw))
         else:
-            # Для дробных статов (проценты, скорость атаки, вампиризм и т.д.) разрешаем значения меньше 1
             base_val = max(0.01, round(raw, 2))
         if stat == "atk_spd":
             base_val = round(base_val / 20.0, 2)
@@ -401,14 +409,12 @@ def generate_potion(level):
     potion_type = random.choice(["flat", "percent"])
     is_percent = potion_type == "percent"
 
-    # Для сильных статов значения должны быть малы
     strong_stats = ["atk_spd", "lifesteal", "thorns", "crit_chance", "crit_damage", "accuracy", "evasion_rating"]
 
     if stat in strong_stats:
         if is_percent:
             base_value = round(random.uniform(0.1, 1.0), 1)
         else:
-            # плоские значения для сильных статов – дробные
             base_value = round(random.uniform(0.02, 0.5), 2)
     else:
         if is_percent:
@@ -480,10 +486,11 @@ async def update_shop(player, force=False):
     now = time.time()
     if force or now - player.shop_last_update > CONFIG["time_shop_update"]:
         player.shop_assortment = []
-        for _ in range(3):
-            player.shop_assortment.append({"item": generate_item(player.shop_rarity), "sold": False})
-        for _ in range(2):
-            player.shop_assortment.append({"ability": generate_ability(player.shop_rarity), "sold": False})
+        # Предметы
+        for _ in range(5):
+            item = generate_item(player.shop_rarity)
+            price = int(item['sell_price'] * 3 * (1 + player.shop_rarity / 5))
+            player.shop_assortment.append({"item": item, "price": price, "sold": False})
         player.shop_last_update = now
         await save_player(player)
 
@@ -523,7 +530,6 @@ def simulate_combat_realtime(player, enemy):
     p_stats = get_total_stats(player)
     e_stats = enemy.copy()
 
-    # Инициализируем щит как максимальное значение
     current_shield = p_stats['m_shield']
     log = [
         f"⚔️ <b>Бой начался!\n\nУгроза: {enemy['difficulty']}</b>\n",
@@ -616,7 +622,6 @@ def simulate_combat_realtime(player, enemy):
                 total_dmg = dmg + magic_dmg
                 if total_dmg <= 0: total_dmg = 1
 
-                # Сначала поглощаем щитом
                 if current_shield > 0:
                     absorbed = min(total_dmg, current_shield)
                     current_shield -= absorbed
@@ -638,7 +643,6 @@ def simulate_combat_realtime(player, enemy):
 
     player.stats["hp"] = max(0, p_stats["hp"])
     player.stats["mp"] = max(0, p_stats["mp"])
-    # Щит не сохраняем – он сбросится в следующем бою
 
     if time_elapsed >= max_time:
         return False, log, "⏳ Время боя вышло! Враг сбежал, а вы истощены."
@@ -688,14 +692,7 @@ async def safe_edit(message: Message, text: str, reply_markup: InlineKeyboardMar
         if "message is not modified" not in str(e):
             raise
 
-# ==========================================
-# ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ПРОСМОТРА ПРЕДМЕТА
-# ==========================================
 async def get_item_view_data(player: Player, idx: int):
-    """
-    Возвращает (text, reply_markup) для просмотра предмета по индексу idx.
-    Если предмет не найден, возвращает (None, None).
-    """
     is_equip = False
     real_idx = -1
     item = None
@@ -732,7 +729,7 @@ async def get_item_view_data(player: Player, idx: int):
         is_percent = stat_key in ["crit_chance", "crit_damage", "atk_spd", "drop_chance", "lifesteal", "thorns", "accuracy", "evasion_rating"]
         raw_cost = (stat_data['base'] * 50 + stat_data['upgrades'] * stat_data['base'] * 20) * stat_data.get('upgrade_price_mult', 1.0)
         upg_cost = max(250, int(raw_cost))
-        s_ru = STAT_RU.get(stat_key, stat_key)
+        s_ru = f"{STAT_EMOJI.get(stat_key, '')} {STAT_RU.get(stat_key, stat_key)}"
         bonus_type = stat_data.get('bonus_type', 'flat')
         bonus_symbol = '%' if bonus_type == 'percent' else ''
         text += f"• {s_ru}: {stat_data['current']:.2f}{bonus_symbol} (база {stat_data['base']:.2f}{bonus_symbol}, улучшений: {stat_data['upgrades']}) - Улучшить: 💰 {upg_cost} (+{stat_data['base']:.2f}{bonus_symbol})\n"
@@ -855,16 +852,16 @@ async def menu_profile(query: CallbackQuery, callback_data: MenuCB):
 
     text = f"👤 <b>Профиль: {player.name}</b>\n💰 Золото: {player.gold}\n🏪 Редкость магазина: {player.shop_rarity}\n🧪 Уровень лавки зелий: {player.potion_shop_level}\n"
     text += f"🔓 Доступная угроза: {player.max_unlocked_difficulty}\n\n"
-    text += f"❤️ {STAT_RU['hp']}: {player.stats['hp']:.1f}/{t_stats['max_hp']:.1f} (+{t_stats['hp_regen']:.2f}/мин)\n"
-    text += f"🛡 {STAT_RU['m_shield']}: {t_stats['m_shield']:.1f} (восстанавливается каждый бой)\n"
-    text += f"💧 {STAT_RU['mp']}: {player.stats['mp']:.1f}/{t_stats['max_mp']:.1f} (+{t_stats['mp_regen']:.2f}/мин)\n"
-    text += f"⚔️ {STAT_RU['atk']}: {t_stats['atk']:.2f} | 🔮 {STAT_RU['magic_atk']}: {t_stats['magic_atk']:.2f}\n"
-    text += f"🛡 {STAT_RU['def']}: {t_stats['def']:.2f} | 💠 {STAT_RU['magic_res']}: {t_stats['magic_res']:.2f}\n"
-    text += f"💥 {STAT_RU['crit_chance']}: {t_stats['crit_chance']:.2f}% | 💢 {STAT_RU['crit_damage']}: {t_stats['crit_damage']:.2f}%\n"
-    text += f"🎯 {STAT_RU['accuracy']}: {t_stats['accuracy']:.2f} | 💨 {STAT_RU['evasion_rating']}: {t_stats['evasion_rating']:.2f}\n"
-    text += f"🦇 {STAT_RU['lifesteal']}: {t_stats['lifesteal']:.2f}% | 🌵 {STAT_RU['thorns']}: {t_stats['thorns']:.2f}%\n"
-    text += f"🪓 {STAT_RU['armor_pen']}: {t_stats['armor_pen']} | 🛡 {STAT_RU['m_shield']}: {t_stats['m_shield']}\n"
-    text += f"⚡️ {STAT_RU['atk_spd']}: {t_stats['atk_spd']:.2f} | 🍀 {STAT_RU['drop_chance']}: x{t_stats['drop_chance']:.2f}\n"
+    text += f"{STAT_EMOJI['hp']} {STAT_RU['hp']}: {player.stats['hp']:.1f}/{t_stats['max_hp']:.1f} (+{t_stats['hp_regen']:.2f}/мин)\n"
+    text += f"{STAT_EMOJI['m_shield']} {STAT_RU['m_shield']}: {t_stats['m_shield']:.1f} (восстанавливается каждый бой)\n"
+    text += f"{STAT_EMOJI['mp']} {STAT_RU['mp']}: {player.stats['mp']:.1f}/{t_stats['max_mp']:.1f} (+{t_stats['mp_regen']:.2f}/мин)\n"
+    text += f"{STAT_EMOJI['atk']} {STAT_RU['atk']}: {t_stats['atk']:.2f} | {STAT_EMOJI['magic_atk']} {STAT_RU['magic_atk']}: {t_stats['magic_atk']:.2f}\n"
+    text += f"{STAT_EMOJI['def']} {STAT_RU['def']}: {t_stats['def']:.2f} | {STAT_EMOJI['magic_res']} {STAT_RU['magic_res']}: {t_stats['magic_res']:.2f}\n"
+    text += f"{STAT_EMOJI['crit_chance']} {STAT_RU['crit_chance']}: {t_stats['crit_chance']:.2f}% | {STAT_EMOJI['crit_damage']} {STAT_RU['crit_damage']}: {t_stats['crit_damage']:.2f}%\n"
+    text += f"{STAT_EMOJI['accuracy']} {STAT_RU['accuracy']}: {t_stats['accuracy']:.2f} | {STAT_EMOJI['evasion_rating']} {STAT_RU['evasion_rating']}: {t_stats['evasion_rating']:.2f}\n"
+    text += f"{STAT_EMOJI['lifesteal']} {STAT_RU['lifesteal']}: {t_stats['lifesteal']:.2f}% | {STAT_EMOJI['thorns']} {STAT_RU['thorns']}: {t_stats['thorns']:.2f}%\n"
+    text += f"{STAT_EMOJI['armor_pen']} {STAT_RU['armor_pen']}: {t_stats['armor_pen']} | {STAT_EMOJI['m_shield']} {STAT_RU['m_shield']}: {t_stats['m_shield']}\n"
+    text += f"{STAT_EMOJI['atk_spd']} {STAT_RU['atk_spd']}: {t_stats['atk_spd']:.2f} | {STAT_EMOJI['drop_chance']} {STAT_RU['drop_chance']}: x{t_stats['drop_chance']:.2f}\n"
 
     await safe_edit(query.message, text, reply_markup=main_menu_kbd())
 
@@ -885,7 +882,7 @@ async def menu_train(query: CallbackQuery, callback_data: MenuCB):
 
     for i, stat in enumerate(stats[start:end], start=1):
         upgrades = player.stat_upgrades[stat]
-        stat_name = STAT_RU.get(stat, stat)
+        stat_name = f"{STAT_EMOJI.get(stat, '')} {STAT_RU.get(stat, stat)}"
         increment_value = TRAINING_INCREMENTS.get(stat, 0.01)
         text += f"{i}. <b>{stat_name}</b> (+{increment_value})\n"
         builder.button(text=f"{i}", callback_data=TrainCB(stat=stat).pack())
@@ -975,21 +972,17 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
         result_msg += f"\n❤️ Осталось здоровья: {player.stats['hp']:.1f}/{t_stats['max_hp']:.1f}, 💧 маны: {player.stats['mp']:.1f}/{t_stats['max_mp']:.1f}"
 
         if is_win:
-            # Увеличиваем счётчик убийств
             diff_str = str(player.current_difficulty)
             kills = player.kills_per_difficulty.get(diff_str, 0)
             player.kills_per_difficulty[diff_str] = kills + 1
 
-            # Золото: теперь 10 * уровень угрозы
             base_gold = 10 * player.current_difficulty
             actual_gold = int(base_gold * enemy['power_mult'] * player.stats["drop_chance"])
             player.gold += actual_gold
             result_msg += f"\n💰 Найдено золота: {actual_gold}."
 
-            # Предмет с учётом drop_chance
-            drop_chance_scaled = 0.2 * enemy['power_mult'] * player.stats["drop_chance"]
+            drop_chance_scaled = 0.2 * enemy['power_mult']
             if random.random() < drop_chance_scaled:
-                # эффективная сложность предмета увеличивается от drop_chance
                 eff_diff = max(1, int(player.current_difficulty * player.stats["drop_chance"]))
                 item = generate_item(eff_diff)
                 if len(player.inventory) < player.inv_slots:
@@ -998,7 +991,6 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
                 else:
                     result_msg += "\n📦 Предмет выпал, но инвентарь полон!"
 
-            # Проверяем открытие нового уровня
             if player.current_difficulty == player.max_unlocked_difficulty and kills + 1 >= KILLS_TO_UNLOCK_NEXT:
                 player.max_unlocked_difficulty += 1
                 result_msg += f"\n✨ Поздравляем! Открыта угроза уровня {player.max_unlocked_difficulty}!"
@@ -1011,7 +1003,7 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
 
         log_text = "\n".join(log)
         if len(log_text) > 3000:
-            log_text = log_text[:1500] + "\n... [БОЙ СЛИШКОМ ДОЛГИЙ] ...\n" + log_text[-1500:]
+            log_text = log_text[:1500] + "\n\n..... [БОЙ ДОЛГИЙ, ПРОПУСК ТЕКСТА] .....\n\n" + log_text[-1500:]
 
         if player.state == 'dead':
             await safe_edit(query.message, f"{log_text}\n\n<b>{result_msg}</b>", reply_markup=main_menu_kbd())
@@ -1032,7 +1024,7 @@ async def hunt_diff_input(message: Message, state: FSMContext):
                 await save_player(player)
                 await message.answer(f"Уровень угрозы установлен на {lvl}.", reply_markup=main_menu_kbd())
             else:
-                await message.answer(f"Максимальная доступная угроза: {player.max_unlocked_difficulty}. Убивайте врагов, чтобы открыть новые уровни.", reply_markup=main_menu_kbd())
+                await message.answer(f"Максимальная доступная угроза: {player.max_unlocked_difficulty}.\nУбивайте врагов, чтобы открыть новые уровни.", reply_markup=main_menu_kbd())
         else:
             await message.answer("Число должно быть больше нуля.", reply_markup=main_menu_kbd())
     except ValueError:
@@ -1043,7 +1035,7 @@ async def hunt_diff_input(message: Message, state: FSMContext):
 @dp.callback_query(MenuCB.filter(F.action == "inv"))
 async def menu_inv(query: CallbackQuery, callback_data: MenuCB):
     player = await get_player(query.from_user.id)
-    text = f"💰 Золото: {player.gold}\n🎒 <b>Инвентарь ({len(player.inventory)}/{player.inv_slots})</b>\n\nЭкипировано:\n"
+    text = f"💰 Золото: {player.gold}\n\n🎒 <b>Инвентарь ({len(player.inventory)}/{player.inv_slots})</b>\n\nЭкипировано:\n"
 
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     b = InlineKeyboardBuilder()
@@ -1072,9 +1064,78 @@ async def menu_inv(query: CallbackQuery, callback_data: MenuCB):
             btn_index += 1
 
     b.adjust(5)
+    b.row(InlineKeyboardButton(text="💰 Массовая продажа", callback_data=SellMassCB(action="menu").pack()))
     b.row(InlineKeyboardButton(text="🔙 Назад", callback_data=MenuCB(action="profile").pack()))
 
     await safe_edit(query.message, text, reply_markup=b.as_markup())
+
+@dp.callback_query(SellMassCB.filter(F.action == "menu"))
+async def sell_mass_menu(query: CallbackQuery, callback_data: SellMassCB):
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    builder.button(text="Продать всё", callback_data=SellMassCB(action="all").pack())
+    builder.button(text="Продать по цене", callback_data=SellMassCB(action="price").pack())
+    builder.button(text="🔙 Назад", callback_data=MenuCB(action="inv").pack())
+    builder.adjust(1)
+    await safe_edit(query.message, "Выберите тип массовой продажи:", reply_markup=builder.as_markup())
+
+@dp.callback_query(SellMassCB.filter(F.action == "all"))
+async def sell_mass_all(query: CallbackQuery, callback_data: SellMassCB):
+    player = await get_player(query.from_user.id)
+    if not player.inventory:
+        await query.answer("Инвентарь пуст!", show_alert=True)
+        return
+    total = 0
+    sold_items = []
+    for item in player.inventory[:]:  # копия для безопасного удаления
+        total += item['sell_price']
+        sold_items.append(item['name'])
+        player.inventory.remove(item)
+    player.gold += total
+    await save_player(player)
+    sold_list = "\n".join(sold_items) if sold_items else "ничего"
+    await safe_edit(query.message,
+                    f"💰 Продано:\n{sold_list}\n\nПолучено: {total} золота.\nТеперь у вас {player.gold} золота.",
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="🔙 В инвентарь", callback_data=MenuCB(action="inv").pack())]
+                    ]))
+
+@dp.callback_query(SellMassCB.filter(F.action == "price"))
+async def sell_mass_price(query: CallbackQuery, callback_data: SellMassCB, state: FSMContext):
+    await query.message.answer("Введите максимальную цену предмета (число):")
+    await state.set_state(Form.waiting_for_sell_price)
+    await query.answer()
+
+@dp.message(Form.waiting_for_sell_price)
+async def sell_mass_price_input(message: Message, state: FSMContext):
+    try:
+        max_price = int(message.text)
+        if max_price < 0:
+            raise ValueError
+    except ValueError:
+        await message.answer("Пожалуйста, введите положительное целое число.")
+        return
+    player = await get_player(message.from_user.id)
+    if not player.inventory:
+        await message.answer("Инвентарь пуст.")
+        await state.clear()
+        return
+    total = 0
+    sold_items = []
+    # проходим по копии списка
+    for item in player.inventory[:]:
+        if item['sell_price'] <= max_price:
+            total += item['sell_price']
+            sold_items.append(item['name'])
+            player.inventory.remove(item)
+    if not sold_items:
+        await message.answer(f"Нет предметов с ценой <= {max_price}.")
+    else:
+        player.gold += total
+        await save_player(player)
+        sold_list = "\n".join(sold_items)
+        await message.answer(f"💰 Продано:\n{sold_list}\n\nПолучено: {total} золота.\nТеперь у вас {player.gold} золота.")
+    await state.clear()
 
 @dp.callback_query(ItemCB.filter(F.action == "view"))
 async def view_item(query: CallbackQuery, callback_data: ItemCB):
@@ -1166,13 +1227,11 @@ async def upg_item(query: CallbackQuery, callback_data: ItemCB):
         await save_player(player)
         await query.answer("Характеристика улучшена!")
 
-        # Обновляем отображение предмета, используя свежего игрока
         updated_player = await get_player(query.from_user.id)
         text, reply_markup = await get_item_view_data(updated_player, callback_data.idx)
         if text:
             await safe_edit(query.message, text, reply_markup)
         else:
-            # Если предмет вдруг исчез, вернёмся в инвентарь
             await menu_inv(query, MenuCB(action="inv"))
     else:
         await query.answer("Недостаточно золота!", show_alert=True)
@@ -1184,7 +1243,7 @@ async def menu_shop(query: CallbackQuery, callback_data: MenuCB):
 
     cost_slot = 1000 + ((player.inv_slots - 10) * 2000)
 
-    text = f"💰 Золото: {player.gold}\n🏪 <b>Магазин (обновляется каждые 10 мин)</b>\nРедкость: {player.shop_rarity}\n\nАссортимент:\n"
+    text = f"💰 Золото: {player.gold}\n🏪 <b>Магазин (обновляется каждые 10 мин)</b>\nРедкость: {player.shop_rarity} (влияет на новые товары)\n\nАссортимент:\n"
 
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     b = InlineKeyboardBuilder()
@@ -1201,15 +1260,15 @@ async def menu_shop(query: CallbackQuery, callback_data: MenuCB):
             continue
         if "item" in entry:
             it = entry["item"]
-            stat_desc = ", ".join([f"{STAT_RU.get(k,k)}:{v['base']:.2f}" for k, v in it['stats'].items()])
-            price = int(it['sell_price'] * 5 * (1 + player.shop_rarity / 3))
+            stat_desc = ", ".join([f"{STAT_EMOJI.get(k, '')}{STAT_RU.get(k,k)}:{v['base']:.2f}" for k, v in it['stats'].items()])
+            price = entry["price"]
             text += f"\n{idx}. 📦 {it['name']} ({stat_desc})\n   Стоимость: 💰 {price}\n"
             b.button(text=f"{idx}", callback_data=ShopCB(action="buy_it", idx=i).pack())
             idx += 1
         elif "ability" in entry:
             ab = entry["ability"]
-            price = int(ab['sell_price'] * 5 * (1 + player.shop_rarity / 3))
-            text += f"\n{idx}. ✨ Навык: {ab['name']} (Сила: {ab['current_value']}, база {ab['base_value']})\n   Стоимость: 💰 {price}\n"
+            price = entry["price"]
+            text += f"\n{idx}. ✨ {ab['name']} (Сила: {ab['current_value']}, база {ab['base_value']})\n   Стоимость: 💰 {price}\n"
             b.button(text=f"{idx}", callback_data=ShopCB(action="buy_ab", idx=i).pack())
             idx += 1
 
@@ -1277,7 +1336,7 @@ async def process_shop(query: CallbackQuery, callback_data: ShopCB, state: FSMCo
             await query.answer("Уже продано!")
             return
         obj = entry.get("item") or entry.get("ability")
-        price = int(obj.get("sell_price", 10) * 5 * (1 + player.shop_rarity / 3))
+        price = entry["price"]
 
         if player.gold >= price:
             if act == "buy_it":
