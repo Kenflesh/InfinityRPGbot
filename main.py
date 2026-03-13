@@ -928,10 +928,24 @@ def simulate_combat_realtime(player, enemy):
     enemy_spells = e_stats.get('spells', [])
     enemy_cooldowns = [0.0] * len(enemy_spells)
 
+    # Определяем наличие оружия в руках
+    has_phys_weapon = False
+    has_magic_weapon = False
+    for slot in ['right_hand', 'left_hand']:
+        item = player.equip.get(slot)
+        if item:
+            typ = item['item_type']
+            if typ in ['weapon1h_physical', 'weapon2h_physical']:
+                has_phys_weapon = True
+            elif typ in ['weapon1h_magical', 'weapon2h_magical']:
+                has_magic_weapon = True
+    # Хотя бы одна рука свободна (не занята никаким предметом)
+    has_free_hand = player.equip.get('right_hand') is None or player.equip.get('left_hand') is None
+
     log = [
         f"⚔️ <b>Бой начался!</b>\nУгроза: {enemy['difficulty']}",
         f"👤 <b>Вы:</b> ❤️ {p_stats['hp']:.1f}/{p_stats['max_hp']:.1f} | 🛡 {current_shield:.1f} | 💧 {p_stats['mp']:.1f}/{p_stats['max_mp']:.1f}",
-        f"👹 <b>{enemy['name']} [{enemy.get('class','')}]</b>: ❤️ {enemy['hp']:.1f}/{enemy['max_hp']:.1f}"
+        f"😡 <b>{enemy['name']} [{enemy.get('class','')}]</b>: ❤️ {enemy['hp']:.1f}/{enemy['max_hp']:.1f}"
     ]
 
     tick = 0.1
@@ -1082,55 +1096,65 @@ def simulate_combat_realtime(player, enemy):
                             spell_used = True
                             break
                 if not spell_used:
-                    # Обычная атака
-                    # Физическая часть
-                    phys_dmg = max(0, p_stats["atk"] - e_stats["def"])
-                    magic_dmg = max(0, p_stats["magic_atk"] - e_stats["magic_res"])
+                    # Определяем, может ли игрок совершить обычную атаку
+                    can_phys = has_phys_weapon or (not has_phys_weapon and has_free_hand)
+                    can_magic = has_magic_weapon
 
-                    hit = random.random()*100 > get_evasion_chance(p_stats["accuracy"], e_stats["evasion_rating"])
-                    if hit:
-                        # Физ крит
-                        if random.random()*100 < p_stats["crit_chance"]:
-                            phys_dmg *= p_stats["crit_damage"]/100.0
-                    else:
+                    if can_phys or can_magic:
                         phys_dmg = 0
+                        magic_dmg = 0
 
-                    # Маг крит
-                    if random.random()*100 < p_stats["magic_crit_chance"]:
-                        magic_dmg *= p_stats["magic_crit_damage"]/100.0
+                        if can_phys:
+                            phys_dmg = max(0, p_stats["atk"] - e_stats["def"])
+                        if can_magic:
+                            magic_dmg = max(0, p_stats["magic_atk"] - e_stats["magic_res"])
 
-                    total_dmg = int(phys_dmg + magic_dmg)
-                    if total_dmg<0: total_dmg=1
+                        hit = random.random()*100 > get_evasion_chance(p_stats["accuracy"], e_stats["evasion_rating"])
+                        if hit:
+                            if can_phys:
+                                # Физ крит
+                                if random.random()*100 < p_stats["crit_chance"]:
+                                    phys_dmg *= p_stats["crit_damage"]/100.0
+                        else:
+                            phys_dmg = 0  # промах по физической части
 
-                    e_stats["hp"] -= total_dmg
+                        # Маг крит (не зависит от уклонения)
+                        if can_magic:
+                            if random.random()*100 < p_stats["magic_crit_chance"]:
+                                magic_dmg *= p_stats["magic_crit_damage"]/100.0
 
-                    msg = f"[{time_elapsed:.1f}с] 🗡 Атака: {total_dmg} урона"
-                    if phys_dmg>0:
-                        # Вампиризм только от физ
-                        if p_stats["lifesteal"]>0:
-                            ls = phys_dmg * (p_stats["lifesteal"]/100.0)
-                            p_stats["hp"] = min(p_stats["max_hp"], p_stats["hp"]+ls)
-                            msg += f" 🩸 +{ls:.1f} HP"
-                        # Шипы врага от физ
-                        if e_stats["thorns"]>0:
-                            th = phys_dmg * (e_stats["thorns"]/100.0)
-                            if current_shield>0:
-                                absorbed = min(th, current_shield)
-                                current_shield -= absorbed
-                                th -= absorbed
-                            if th>0:
-                                # Округляем до 1, если th меньше 1
-                                if th < 1:
-                                    th = 1
-                                p_stats["hp"] -= th
-                                msg += f" 🌵 -{th:.1f} HP"
-                    if magic_dmg>0:
-                        # Истощение энергии от маг
-                        if p_stats["magic_shield_drain"]>0:
-                            drain = magic_dmg * (p_stats["magic_shield_drain"]/100.0)
-                            current_shield = min(current_shield + drain, p_stats["max_hp"]*0.5)
-                            msg += f" 🔋 +{drain:.1f} щита"
-                    log.append(msg)
+                        total_dmg = int(phys_dmg + magic_dmg)
+
+                        if total_dmg > 0:
+                            e_stats["hp"] -= total_dmg
+
+                            msg = f"[{time_elapsed:.1f}с] 🗡 Атака: {total_dmg} урона"
+                            if phys_dmg>0:
+                                # Вампиризм только от физ
+                                if p_stats["lifesteal"]>0:
+                                    ls = phys_dmg * (p_stats["lifesteal"]/100.0)
+                                    p_stats["hp"] = min(p_stats["max_hp"], p_stats["hp"]+ls)
+                                    msg += f" 🩸 +{ls:.1f} HP"
+                                # Шипы врага от физ
+                                if e_stats["thorns"]>0:
+                                    th = phys_dmg * (e_stats["thorns"]/100.0)
+                                    if current_shield>0:
+                                        absorbed = min(th, current_shield)
+                                        current_shield -= absorbed
+                                        th -= absorbed
+                                    if th>0:
+                                        # Округляем до 1, если th меньше 1
+                                        if th < 1:
+                                            th = 1
+                                        p_stats["hp"] -= th
+                                        msg += f" 🌵 -{th:.1f} HP"
+                            if magic_dmg>0:
+                                # Истощение энергии от маг
+                                if p_stats["magic_shield_drain"]>0:
+                                    drain = magic_dmg * (p_stats["magic_shield_drain"]/100.0)
+                                    current_shield = min(current_shield + drain, p_stats["max_hp"]*0.5)
+                                    msg += f" 🔋 +{drain:.1f} щита"
+                            log.append(msg)
 
         # Ход врага
         if e_stats["hp"]>0 and not enemy_stopped:
@@ -1149,7 +1173,7 @@ def simulate_combat_realtime(player, enemy):
                             e_stats["mp"] -= spell["mp_cost"]
                             cd = spell["base_cooldown"] / (1 + spell["upgrades"]*0.1)
                             enemy_cooldowns[idx] = cd
-                            msg = f"[{time_elapsed:.1f}с] 👹 {spell['name']}: "
+                            msg = f"[{time_elapsed:.1f}с] Враг использует заклинание:✨ {spell['name']}: "
                             for eff in spell["effects"]:
                                 if eff["target"] == TARGET_ENEMY:
                                     msg += apply_effect(eff, e_stats, p_stats, False, p_effects)
