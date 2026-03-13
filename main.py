@@ -351,40 +351,40 @@ CONFIG = {
     "time_potion_update": 300,
 
     "enemy_base_stats": {
-        "hp": 15,
-        "atk": 7,
-        "def": 3,
-        "m_shield": 5,
-        "magic_atk": 2,
-        "magic_res": 2,
-        "atk_spd": 0.12,
-        "accuracy": 15,
-        "evasion_rating": 12,
-        "crit_chance": 3.0,
-        "crit_damage": 160.0,
-        "lifesteal": 0.5,
-        "thorns": 1.5,
-        "magic_crit_chance": 2.0,
-        "magic_crit_damage": 160.0,
-        "magic_shield_drain": 1.5
+        "hp": 10,
+        "atk": 4,
+        "def": 2,
+        "m_shield": 2,
+        "magic_atk": 1,
+        "magic_res": 1,
+        "atk_spd": 0.1,
+        "accuracy": 10,
+        "evasion_rating": 5,
+        "crit_chance": 2.0,
+        "crit_damage": 150.0,
+        "lifesteal": 0.0,
+        "thorns": 0.5,
+        "magic_crit_chance": 1.0,
+        "magic_crit_damage": 150.0,
+        "magic_shield_drain": 0.5
     },
     "enemy_stat_scale": {
-        "hp": 40,
-        "atk": 8,
-        "def": 2,
-        "m_shield": 15,
-        "magic_atk": 3,
-        "magic_res": 1,
-        "atk_spd": 0.03,
-        "accuracy": 1,
-        "evasion_rating": 0.2,
-        "crit_chance": 1.0,
-        "crit_damage": 8.0,
-        "lifesteal": 0.2,
-        "thorns": 0.1,
-        "magic_crit_chance": 1.0,
-        "magic_crit_damage": 8.0,
-        "magic_shield_drain": 0.2
+        "hp": 20,
+        "atk": 4,
+        "def": 1,
+        "m_shield": 8,
+        "magic_atk": 1.5,
+        "magic_res": 0.5,
+        "atk_spd": 0.02,
+        "accuracy": 0.5,
+        "evasion_rating": 0.1,
+        "crit_chance": 0.5,
+        "crit_damage": 5.0,
+        "lifesteal": 0.05,
+        "thorns": 0.05,
+        "magic_crit_chance": 0.5,
+        "magic_crit_damage": 5.0,
+        "magic_shield_drain": 0.1
     }
 }
 
@@ -1705,24 +1705,22 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
         if len(log_text) > 3000:
             log_text = log_text[:1500] + "\n\n..... [БОЙ ДОЛГИЙ, ПРОПУСК ТЕКСТА] .....\n\n" + log_text[-1500:]
 
-        if player.state == 'dead':
-            await safe_edit(query.message, f"{log_text}\n\n<b>{result_msg}</b>", reply_markup=main_menu_kbd())
-        else:
-            from aiogram.utils.keyboard import InlineKeyboardBuilder
-            back_builder = InlineKeyboardBuilder()
-            back_builder.button(text="🔙 К охоте", callback_data=MenuCB(action="hunt").pack())
+        from aiogram.utils.keyboard import InlineKeyboardBuilder
+        back_builder = InlineKeyboardBuilder()
+        back_builder.button(text="🔙 К охоте", callback_data=MenuCB(action="hunt").pack())
 
-            # Сохраняем врага в кэш и создаём ключ
-            cache_key = f"{query.from_user.id}_{int(time.time())}_{random.randint(1000,9999)}"
-            enemy_cache[cache_key] = enemy
-            asyncio.create_task(clear_enemy_cache(cache_key, 60))
+        # Сохраняем врага в кэш и создаём ключ (всегда, чтобы можно было посмотреть статистику)
+        cache_key = f"{query.from_user.id}_{int(time.time())}_{random.randint(1000,9999)}"
+        enemy_cache[cache_key] = enemy
+        asyncio.create_task(clear_enemy_cache(cache_key, 60))
 
-            back_builder.button(
-                text="📊 Статистика боя",
-                callback_data=CombatStatsCB(action="show", enemy_data=cache_key).pack()
-            )
-            back_builder.adjust(2)
-            await safe_edit(query.message, f"{log_text}\n\n<b>{result_msg}</b>", reply_markup=back_builder.as_markup())
+        back_builder.button(
+            text="📊 Статистика боя",
+            callback_data=CombatStatsCB(action="show", enemy_data=cache_key).pack()
+        )
+        back_builder.adjust(2)
+
+        await safe_edit(query.message, f"{log_text}\n\n<b>{result_msg}</b>", reply_markup=back_builder.as_markup())
 
 @dp.message(Form.waiting_for_difficulty)
 async def hunt_diff_input(message: Message, state: FSMContext):
@@ -1822,7 +1820,7 @@ async def menu_inv(query: CallbackQuery, callback_data: MenuCB):
     else:
         for real_idx, item in enumerate(player.inventory):
             item_type_ru = ITEM_TYPE_RU.get(item['item_type'], item['item_type'])
-            text += f"{btn_index+1}. {item['name']} [{item_type_ru}]\n"
+            text += f"{btn_index+1}. [{item_type_ru}] {item['name']}\n"
             b.button(text=f"{btn_index+1}", callback_data=ItemCB(action="view", idx=btn_index).pack())
             all_items.append({"data":item,"is_equip":False,"slot":None,"real_idx":real_idx})
             btn_index += 1
@@ -2153,7 +2151,7 @@ async def menu_shop(query: CallbackQuery, callback_data: MenuCB):
         item_type_ru = ITEM_TYPE_RU.get(it['item_type'], it['item_type'])
         stat_desc = ", ".join([f"{STAT_EMOJI.get(k,'')}{STAT_RU.get(k,k)}:{v['base']:.2f}" for k,v in it['stats'].items()])
         price = entry["price"]
-        text += f"\n{btn_num}. 📦 {it['name']} [{item_type_ru}] ({stat_desc})\n   Стоимость: 💰 {price}\n"
+        text += f"\n{btn_num}. 📦 [{item_type_ru}] {it['name']} ({stat_desc})\n   Стоимость: 💰 {price}\n"
         b.button(text=f"{btn_num}", callback_data=ShopCB(action="buy_it", idx=original_idx).pack())
         btn_num += 1
 
