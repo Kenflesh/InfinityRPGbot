@@ -57,6 +57,22 @@ STAT_EMOJI = {
     "magic_crit_chance": "✨", "magic_crit_damage": "💫", "magic_shield_drain": "🔋"
 }
 
+ITEM_TYPE_RU = {
+    "weapon1h_physical": "⚔️ Одноручное физ.",
+    "weapon1h_magical": "🔮 Одноручное маг.",
+    "weapon2h_physical": "⚔️ Двуручное физ.",
+    "weapon2h_magical": "🔮 Двуручное маг.",
+    "shield": "🛡 Щит",
+    "tome": "📖 Книга",
+    "tome2h": "📚 Тяжёлая книга",
+    "boots": "👢 Обувь",
+    "belt": "🧣 Пояс",
+    "robe": "👘 Одежда",
+    "helmet": "⛑ Шлем",
+    "amulet": "📿 Амулет",
+    "ring": "💍 Кольцо"
+}
+
 TRAINING_INCREMENTS = {
     "adaptability": 0.005,
     "max_hp": 3.0,
@@ -1803,7 +1819,8 @@ async def menu_inv(query: CallbackQuery, callback_data: MenuCB):
         text += "Пусто\n"
     else:
         for real_idx, item in enumerate(player.inventory):
-            text += f"{btn_index+1}. {item['name']}\n"
+            item_type_ru = ITEM_TYPE_RU.get(item['item_type'], item['item_type'])
+            text += f"{btn_index+1}. {item['name']} [{item_type_ru}]\n"
             b.button(text=f"{btn_index+1}", callback_data=ItemCB(action="view", idx=btn_index).pack())
             all_items.append({"data":item,"is_equip":False,"slot":None,"real_idx":real_idx})
             btn_index += 1
@@ -2125,17 +2142,18 @@ async def menu_shop(query: CallbackQuery, callback_data: MenuCB):
         InlineKeyboardButton(text="▶️", callback_data=ShopCB(action="inc_rarity").pack())
     )
 
-    idx = 1
-    for i, entry in enumerate(player.shop_assortment):
-        if entry["sold"]:
-            continue
-        if "item" in entry:
-            it = entry["item"]
-            stat_desc = ", ".join([f"{STAT_EMOJI.get(k,'')}{STAT_RU.get(k,k)}:{v['base']:.2f}" for k,v in it['stats'].items()])
-            price = entry["price"]
-            text += f"\n{idx}. 📦 {it['name']} ({stat_desc})\n   Стоимость: 💰 {price}\n"
-            b.button(text=f"{idx}", callback_data=ShopCB(action="buy_it", idx=i).pack())
-            idx += 1
+    items_with_idx = [(i, entry) for i, entry in enumerate(player.shop_assortment) if not entry["sold"]]
+    items_with_idx.sort(key=lambda x: (x[1]['item']['item_type'], x[1]['item']['name']))
+
+    btn_num = 1
+    for original_idx, entry in items_with_idx:
+        it = entry["item"]
+        item_type_ru = ITEM_TYPE_RU.get(it['item_type'], it['item_type'])
+        stat_desc = ", ".join([f"{STAT_EMOJI.get(k,'')}{STAT_RU.get(k,k)}:{v['base']:.2f}" for k,v in it['stats'].items()])
+        price = entry["price"]
+        text += f"\n{btn_num}. 📦 {it['name']} [{item_type_ru}] ({stat_desc})\n   Стоимость: 💰 {price}\n"
+        b.button(text=f"{btn_num}", callback_data=ShopCB(action="buy_it", idx=original_idx).pack())
+        btn_num += 1
 
     b.adjust(3)
     refresh_cost = 50 * player.max_unlocked_difficulty
