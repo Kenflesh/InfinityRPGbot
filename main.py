@@ -50,14 +50,15 @@ STAT_EMOJI = {
     "max_hp": "❤️", "hp": "❤️", "max_mp": "💧", "mp": "💧",
     "atk": "🗡️", "def": "🛡️", "m_shield": "✨",
     "crit_chance": "💥", "crit_damage": "💢", "accuracy": "🎯", "evasion_rating": "💨",
-    "atk_spd": "⚡", "hp_regen": "🩹", "mp_regen": "🔮",
-    "drop_chance": "🍀", "lifesteal": "🦇", "armor_pen": "🪓",
+    "atk_spd": "⚡", "hp_regen": "💊", "mp_regen": "🔮",
+    "drop_chance": "🍀", "lifesteal": "🩸", "armor_pen": "🪓",
     "magic_atk": "🔮", "magic_res": "🌀", "thorns": "🌵",
     "adaptability": "🌟",
     "magic_crit_chance": "✨", "magic_crit_damage": "💫", "magic_shield_drain": "🔋"
 }
 
 TRAINING_INCREMENTS = {
+    "adaptability": 0.005,
     "max_hp": 3.0,
     "max_mp": 3.0,
     "atk": 0.3,
@@ -76,7 +77,6 @@ TRAINING_INCREMENTS = {
     "magic_atk": 0.3,
     "magic_res": 0.3,
     "thorns": 0.04,
-    "adaptability": 0.005,
     "magic_crit_chance": 0.05,
     "magic_crit_damage": 1.0,
     "magic_shield_drain": 0.008
@@ -89,7 +89,7 @@ EQUIP_SLOTS = [
 
 ITEM_TYPES = [
     "weapon1h_physical", "weapon1h_magical", "weapon2h_physical", "weapon2h_magical",
-    "shield", "tome", "boots", "belt", "robe", "helmet", "amulet", "ring"
+    "shield", "tome", "tome2h", "boots", "belt", "robe", "helmet", "amulet", "ring"
 ]
 
 ITEM_TYPE_TO_SLOTS = {
@@ -99,6 +99,7 @@ ITEM_TYPE_TO_SLOTS = {
     "weapon2h_magical": ["right_hand", "left_hand"],
     "shield": ["right_hand", "left_hand"],
     "tome": ["right_hand", "left_hand"],
+    "tome2h": ["right_hand", "left_hand"],
     "boots": ["boots"],
     "belt": ["belt"],
     "robe": ["robe"],
@@ -114,6 +115,7 @@ ITEM_HANDS_USED = {
     "weapon2h_magical": 2,
     "shield": 1,
     "tome": 1,
+    "tome2h": 2,
     "boots": 0,
     "belt": 0,
     "robe": 0,
@@ -129,6 +131,10 @@ ITEM_ALLOWED_STATS = {
     "weapon2h_magical": ["magic_atk", "atk_spd", "crit_chance", "crit_damage", "accuracy", "lifesteal", "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"],
     "shield": ["def", "magic_res", "max_hp", "m_shield", "thorns", "evasion_rating"],
     "tome": ["magic_atk", "max_mp", "mp_regen", "crit_chance", "crit_damage", "accuracy", "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"],
+    "tome2h": ["atk", "def", "max_hp", "max_mp", "hp_regen", "mp_regen", "atk_spd",
+               "crit_chance", "crit_damage", "accuracy", "evasion_rating", "lifesteal",
+               "armor_pen", "magic_atk", "magic_res", "thorns", "m_shield",
+               "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"],
     "boots": ["def", "evasion_rating", "hp_regen", "max_hp"],
     "belt": ["def", "max_hp", "hp_regen", "armor_pen"],
     "robe": ["def", "magic_res", "max_hp", "hp_regen", "mp_regen", "thorns"],
@@ -141,6 +147,7 @@ ITEM_ALLOWED_STATS = {
 
 MAX_STATS_PER_ITEM = {"ring": 10}
 TWOHAND_MULTIPLIER = 2.0
+TOME_MULTIPLIER = 5.0 
 
 PREFIXES = [
     "Свирепый", "Древний", "Пылающий", "Забытый", "Проклятый", "Святой", "Теневой", "Искрящийся",
@@ -154,6 +161,7 @@ NOUNS = {
     "weapon2h_magical": ["Посох магии", "Гримуар", "Фолиант"],
     "shield": ["Щит", "Баклер", "Эгида", "Башенный щит"],
     "tome": ["Фолиант", "Гримуар", "Книга заклинаний", "Манускрипт"],
+    "tome2h": ["Тяжёлый фолиант", "Гримуар силы", "Тяжёлая книга", "Фолиант древних"],
     "boots": ["Сапоги", "Ботинки", "Кеды", "Сандалии"],
     "belt": ["Пояс", "Ремень", "Кушак"],
     "robe": ["Мантия", "Роба", "Плащ", "Одеяние"],
@@ -652,6 +660,8 @@ def generate_item(item_type, rarity):
         raw = (rarity * 0.25 * random.uniform(0.8, 1.2)) * mult
         if "weapon2h" in item_type:
             raw *= TWOHAND_MULTIPLIER
+        elif item_type == "tome2h":
+            raw *= TOME_MULTIPLIER
 
         integer_stats = ["atk", "def", "max_hp", "max_mp", "magic_atk", "magic_res", "armor_pen", "m_shield"]
         if stat in integer_stats:
@@ -1988,15 +1998,16 @@ async def upg_item(query: CallbackQuery, callback_data: ItemCB):
     idx = callback_data.idx
     stat_key = callback_data.stat
 
-    is_equip = idx < 900
+    is_equip = idx >= 900
     if is_equip:
+        slot_index = idx - 900
         slots = list(player.equip.keys())
-        if idx >= len(slots):
+        if slot_index >= len(slots):
             return
-        slot = slots[idx]
+        slot = slots[slot_index]
         item = player.equip[slot]
     else:
-        inv_idx = idx - 900
+        inv_idx = idx
         if inv_idx >= len(player.inventory):
             return
         item = player.inventory[inv_idx]
@@ -2005,8 +2016,8 @@ async def upg_item(query: CallbackQuery, callback_data: ItemCB):
         return
 
     s_data = item["stats"][stat_key]
-    raw_cost = (s_data['base']*50 + s_data['upgrades']*s_data['base']*20) * s_data.get('upgrade_price_mult',1.0)
-    upg_cost = max(250, int(raw_cost))
+    raw_cost = (100 * player.max_unlocked_difficulty + s_data['base'] * 50 + s_data['upgrades'] * s_data['base'] * 20) * s_data.get('upgrade_price_mult', 1.0)
+    upg_cost = max(10, int(raw_cost))
 
     if player.gold >= upg_cost:
         player.gold -= upg_cost
@@ -2127,7 +2138,8 @@ async def menu_shop(query: CallbackQuery, callback_data: MenuCB):
             idx += 1
 
     b.adjust(3)
-    b.row(InlineKeyboardButton(text="Обновить товары (💰 500)", callback_data=ShopCB(action="refresh").pack()))
+    refresh_cost = 50 * player.max_unlocked_difficulty
+    b.row(InlineKeyboardButton(text=f"Обновить товары (💰 {refresh_cost})", callback_data=ShopCB(action="refresh").pack()))
     b.row(InlineKeyboardButton(text=f"Слот инвентаря (💰 {cost_slot})", callback_data=ShopCB(action="slot").pack()))
     b.row(InlineKeyboardButton(text="Восстановить ХП/МП (💰 25)", callback_data=ShopCB(action="heal").pack()))
     b.row(InlineKeyboardButton(text="🔙 Назад", callback_data=MenuCB(action="profile").pack()))
@@ -2155,14 +2167,14 @@ async def process_shop(query: CallbackQuery, callback_data: ShopCB, state: FSMCo
         await state.set_state(Form.waiting_for_shop_rarity)
         await query.answer()
     elif act == "refresh":
-        if player.gold >= 500:
-            player.gold -= 500
-            await save_player(player)
+        cost = 50 * player.max_unlocked_difficulty  # стоимость = 5 боёв (10 * difficulty * 5)
+        if player.gold >= cost:
+            player.gold -= cost
             await update_shop(player, force=True)
             await query.answer("Магазин обновлен!")
             await menu_shop(query, MenuCB(action="shop"))
         else:
-            await query.answer("Недостаточно золота!", show_alert=True)
+            await query.answer(f"Недостаточно золота! Нужно {cost}", show_alert=True)
     elif act == "slot":
         cost = 1000 + ((player.inv_slots - 10) * 2000)
         if player.gold >= cost:
@@ -2244,7 +2256,7 @@ async def menu_potions(query: CallbackQuery, callback_data: MenuCB):
         idx += 1
 
     b.adjust(3)
-    b.row(InlineKeyboardButton(text="Обновить зелья (💰 500)", callback_data=PotionCB(action="refresh").pack()))
+    b.row(InlineKeyboardButton(text=f"Обновить зелья (💰 {50 * player.max_unlocked_difficulty})", callback_data=PotionCB(action="refresh").pack()))
     b.row(InlineKeyboardButton(text="🔙 Назад", callback_data=MenuCB(action="profile").pack()))
 
     await safe_edit(query.message, text, reply_markup=b.as_markup())
