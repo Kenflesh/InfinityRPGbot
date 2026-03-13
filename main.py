@@ -715,38 +715,28 @@ def generate_potion(difficulty):
     all_potion_stats = potion_stats + ["adaptability"]
     stat = random.choice(all_potion_stats)
 
+    # Адаптивность всегда плоская, остальные могут быть процентными или плоскими
     potion_type = random.choice(["flat", "percent"]) if stat != "adaptability" else "flat"
     is_percent = potion_type == "percent"
 
-    # Список "сильных" характеристик, которые должны иметь малые дробные прибавки
-    strong_stats = [
-        "atk_spd", "lifesteal", "thorns", "crit_chance", "crit_damage",
-        "accuracy", "evasion_rating", "magic_crit_chance", "magic_crit_damage",
-        "magic_shield_drain", "drop_chance"
-    ]
-
-    # Генерация значения эффекта (больше не зависит от сложности)
+    # Генерация значения эффекта
     if stat == "adaptability":
-        # адаптивность растёт очень медленно
+        # очень медленный рост
         value = round(random.uniform(0.001, 0.005), 3)
     else:
-        if stat in strong_stats:
-            if is_percent:
-                # процентный бонус для сильных статов (например, +0.5% к криту)
-                value = round(random.uniform(0.1, 1.0), 1)
-            else:
-                # плоский бонус для сильных статов (малые дробные значения)
-                value = round(random.uniform(0.01, 0.2), 2)
+        if is_percent:
+            # процентные зелья: от 0.1% до 1.0%
+            value = round(random.uniform(0.1, 1.0), 1)
         else:
-            # обычные статы (сила, защита, здоровье и т.п.)
-            if is_percent:
-                value = round(random.uniform(0.2, 2.0), 1)
-            else:
-                value = int(round(random.uniform(1, 3)))
+            # аддитивные зелья: эквивалент 1–10 тренировок
+            base_inc = TRAINING_INCREMENTS.get(stat, 0.01)
+            raw_value = random.uniform(1, 10) * base_inc
+            # Округление до двух знаков, чтобы избежать излишней длинны
+            value = round(raw_value, 2)
 
-    # Цена зависит от сложности (чем выше сложность, тем дороже зелье)
+    # Цена зависит от сложности (чем выше угроза, тем дороже)
     base_price = int(30 * difficulty * random.uniform(0.8, 1.2))
-    price = max(50, base_price)  # минимальная цена 50
+    price = max(50, base_price)
 
     name = f"Зелье {STAT_RU[stat]} +{value}{'%' if is_percent else ''}"
     return {
