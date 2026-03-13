@@ -891,7 +891,7 @@ async def menu_train(query: CallbackQuery, callback_data: MenuCB):
     start = page * per_page
     end = start + per_page
 
-    text = f"💰 Золото: {player.gold}\n🏋️ <b>Тренировка (1 минута)</b>\nВыберите характеристику:\n\n"
+    text = f"💰 Золото: {player.gold}\n🏋️ <b>Тренировка (10 секунд)</b>\nВыберите характеристику:\n\n"
 
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     builder = InlineKeyboardBuilder()
@@ -930,7 +930,7 @@ async def process_train(query: CallbackQuery, callback_data: TrainCB):
     player.state_end_time = time.time() + CONFIG["time_train"]
     await save_player(player)
     await safe_edit(query.message,
-                    f"Вы начали тренировку <b>{STAT_RU.get(stat, stat)}</b>. Вернитесь через 1 минуту.",
+                    f"Вы начали тренировку <b>{STAT_RU.get(stat, stat)}</b>. Вернитесь через 10 секунд.",
                     reply_markup=waiting_kbd(player.state_end_time))
 
 @dp.callback_query(MenuCB.filter(F.action == "hunt"))
@@ -1300,7 +1300,7 @@ async def menu_shop(query: CallbackQuery, callback_data: MenuCB):
 
     cost_slot = 1000 + ((player.inv_slots - 10) * 2000)
 
-    text = f"💰 Золото: {player.gold}\n🏪 <b>Магазин (обновляется каждые 10 мин)</b>\nРедкость: {player.shop_rarity} (влияет на новые товары)\n\nАссортимент:\n"
+    text = f"💰 Золото: {player.gold}\n🏪 <b>Магазин (обновляется каждые 5 мин)</b>\nРедкость: {player.shop_rarity} (влияет на новые товары)\n\nАссортимент:\n"
 
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     b = InlineKeyboardBuilder()
@@ -1431,7 +1431,7 @@ async def menu_potions(query: CallbackQuery, callback_data: MenuCB):
     player = await get_player(query.from_user.id)
     await update_potion_shop(player)
 
-    text = f"💰 Золото: {player.gold}\n🧪 <b>Лавка зелий (обновляется каждые 10 мин)</b>\n\nАссортимент:\n"
+    text = f"💰 Золото: {player.gold}\n🧪 <b>Лавка зелий (обновляется каждые 5 мин)</b>\n\nАссортимент:\n"
 
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     b = InlineKeyboardBuilder()
