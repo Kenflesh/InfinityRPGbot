@@ -971,16 +971,18 @@ def simulate_combat_realtime(player, enemy):
                     msg += f"🔋 +{shield_gain:.1f} щита "
                 msg += f"🔥 {dmg:.1f} урона"
             else: # mp_burn
-                target_stats["mp"] = max(0, target_stats["mp"] - dmg)
-                msg += f"💧 -{dmg} маны"
+                if "max_mp" in target_stats:
+                    target_stats["mp"] = max(0, target_stats["mp"] - dmg)
+                    msg += f"💧 -{dmg} маны"
 
         elif eff_type in ["heal","mp_restore"]:
             if eff_type=="heal":
                 target_stats["hp"] = min(target_stats["max_hp"], target_stats["hp"] + base)
                 msg += f"💚 +{base} HP"
-            else:
-                target_stats["mp"] = min(target_stats["max_mp"], target_stats["mp"] + base)
-                msg += f"💧 +{base} MP"
+            else:  # mp_restore
+                if "max_mp" in target_stats:
+                    target_stats["mp"] = min(target_stats["max_mp"], target_stats["mp"] + base)
+                    msg += f"💧 +{base} MP"
 
         elif eff_type in ["dot","hot","buff","debuff","time_stop"]:
             # Добавляем эффект в список с продолжительностью
