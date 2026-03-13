@@ -58,28 +58,28 @@ STAT_EMOJI = {
 }
 
 TRAINING_INCREMENTS = {
-    "max_hp": 1.0,
-    "max_mp": 1.0,
-    "atk": 0.1,
-    "def": 0.1,
-    "m_shield": 0.5,
-    "crit_chance": 0.02,
-    "crit_damage": 0.5,
-    "accuracy": 0.05,
-    "evasion_rating": 0.05,
-    "atk_spd": 0.005,
-    "hp_regen": 0.02,
-    "mp_regen": 0.02,
-    "drop_chance": 0.002,
-    "lifesteal": 0.002,
-    "armor_pen": 0.05,
-    "magic_atk": 0.1,
-    "magic_res": 0.1,
-    "thorns": 0.02,
-    "adaptability": 0.001,
-    "magic_crit_chance": 0.02,
-    "magic_crit_damage": 0.5,
-    "magic_shield_drain": 0.002
+    "max_hp": 3.0,
+    "max_mp": 3.0,
+    "atk": 0.3,
+    "def": 0.3,
+    "m_shield": 1.5,
+    "crit_chance": 0.05,
+    "crit_damage": 1.0,
+    "accuracy": 0.15,
+    "evasion_rating": 0.15,
+    "atk_spd": 0.01,
+    "hp_regen": 0.06,
+    "mp_regen": 0.06,
+    "drop_chance": 0.006,
+    "lifesteal": 0.008,
+    "armor_pen": 0.15,
+    "magic_atk": 0.3,
+    "magic_res": 0.3,
+    "thorns": 0.04,
+    "adaptability": 0.005,
+    "magic_crit_chance": 0.05,
+    "magic_crit_damage": 1.0,
+    "magic_shield_drain": 0.008
 }
 
 # ===================== СЛОТЫ И ПРЕДМЕТЫ =====================
@@ -194,7 +194,7 @@ ENEMY_CLASSES = {
         "name": "Маг",
         "mult": {
             "hp": 0.8,
-            "m_shield": 2.0,
+            "m_shield": 1.5,          # уменьшено с 2.0
             "atk": 0.2,
             "magic_atk": 1.5,
             "def": 0.5,
@@ -206,21 +206,21 @@ ENEMY_CLASSES = {
             "crit_damage": 1.2,
             "lifesteal": 0.0,
             "thorns": 0.0,
-            "magic_crit_chance": 3.0,
-            "magic_crit_damage": 2.5,
+            "magic_crit_chance": 2.5,   # уменьшено с 3.0
+            "magic_crit_damage": 2.2,    # уменьшено с 2.5
             "magic_shield_drain": 0.5
         }
     },
     "berserker": {
         "name": "Берсерк",
         "mult": {
-            "hp": 0.6,
+            "hp": 0.8,                  # увеличено с 0.6
             "m_shield": 0.0,
-            "atk": 3.5,
+            "atk": 2.5,                  # уменьшено с 3.5
             "magic_atk": 0.0,
             "def": 0.6,
             "magic_res": 0.5,
-            "atk_spd": 1.7,
+            "atk_spd": 1.5,              # уменьшено с 1.7
             "accuracy": 1.1,
             "evasion_rating": 0.2,
             "crit_chance": 1.0,
@@ -235,13 +235,13 @@ ENEMY_CLASSES = {
     "tank": {
         "name": "Танк",
         "mult": {
-            "hp": 3.0,
+            "hp": 2.5,                  # уменьшено с 3.0
             "m_shield": 0.0,
-            "atk": 0.5,
+            "atk": 0.8,                  # увеличено с 0.5
             "magic_atk": 0.0,
-            "def": 3.0,
+            "def": 2.0,                  # уменьшено с 3.0
             "magic_res": 1.5,
-            "atk_spd": 0.2,
+            "atk_spd": 0.4,              # увеличено с 0.2
             "accuracy": 0.8,
             "evasion_rating": 0.0,
             "crit_chance": 0.2,
@@ -256,9 +256,9 @@ ENEMY_CLASSES = {
     "assassin": {
         "name": "Ассасин",
         "mult": {
-            "hp": 0.2,
+            "hp": 0.3,
             "m_shield": 0.0,
-            "atk": 1.2,
+            "atk": 2.0,
             "magic_atk": 0.0,
             "def": 0.4,
             "magic_res": 0.4,
@@ -300,7 +300,7 @@ ENEMY_CLASSES = {
         "mult": {
             "hp": 2.0,
             "m_shield": 0.0,
-            "atk": 0.1,
+            "atk": 0.3,                  # увеличено с 0.1
             "magic_atk": 0.0,
             "def": 1.5,
             "magic_res": 0.5,
@@ -310,7 +310,7 @@ ENEMY_CLASSES = {
             "crit_chance": 0.0,
             "crit_damage": 0.0,
             "lifesteal": 0.0,
-            "thorns": 3.0,
+            "thorns": 2.0,                # уменьшено с 3.0
             "magic_crit_chance": 0.0,
             "magic_crit_damage": 0.0,
             "magic_shield_drain": 0.0
@@ -327,40 +327,40 @@ CONFIG = {
     "time_potion_update": 300,
 
     "enemy_base_stats": {
-        "hp": 10,
-        "atk": 5,
-        "def": 2,
-        "m_shield": 5, 
-        "magic_atk": 1,
-        "magic_res": 1,
-        "atk_spd": 0.1,
-        "accuracy": 10,
-        "evasion_rating": 10,
-        "crit_chance": 2.0,
-        "crit_damage": 150.0,
-        "lifesteal": 0.0,
-        "thorns": 1.0,
-        "magic_crit_chance": 1.0,
-        "magic_crit_damage": 150.0,
-        "magic_shield_drain": 1.0
+        "hp": 15,
+        "atk": 7,
+        "def": 3,
+        "m_shield": 5,
+        "magic_atk": 2,
+        "magic_res": 2,
+        "atk_spd": 0.12,
+        "accuracy": 15,
+        "evasion_rating": 12,
+        "crit_chance": 3.0,
+        "crit_damage": 160.0,
+        "lifesteal": 0.5,
+        "thorns": 1.5,
+        "magic_crit_chance": 2.0,
+        "magic_crit_damage": 160.0,
+        "magic_shield_drain": 1.5
     },
     "enemy_stat_scale": {
-        "hp": 25,
-        "atk": 5,
-        "def": 1,
-        "m_shield": 10,
-        "magic_atk": 1.5,
-        "magic_res": 0.5,
-        "atk_spd": 0.02,
-        "accuracy": 0.5,
-        "evasion_rating": 0.1,
-        "crit_chance": 0.5,
-        "crit_damage": 5.0,
-        "lifesteal": 0.1,
-        "thorns": 0.05,
-        "magic_crit_chance": 0.5,
-        "magic_crit_damage": 5.0,
-        "magic_shield_drain": 0.1
+        "hp": 40,
+        "atk": 8,
+        "def": 2,
+        "m_shield": 15,
+        "magic_atk": 3,
+        "magic_res": 1,
+        "atk_spd": 0.03,
+        "accuracy": 1,
+        "evasion_rating": 0.2,
+        "crit_chance": 1.0,
+        "crit_damage": 8.0,
+        "lifesteal": 0.2,
+        "thorns": 0.1,
+        "magic_crit_chance": 1.0,
+        "magic_crit_damage": 8.0,
+        "magic_shield_drain": 0.2
     }
 }
 
@@ -516,6 +516,10 @@ async def get_player(user_id, name="Hero"):
         if uid not in db['players']:
             db['players'][uid] = Player(uid, name).__dict__
             _save_db_unlocked()
+        else:
+            if name != "Hero" and db['players'][uid].get('name') != name:
+                db['players'][uid]['name'] = name
+                _save_db_unlocked()
         data = db['players'][uid]
     return Player.from_dict(data)
 
@@ -680,7 +684,7 @@ def generate_item(item_type, rarity):
         "sell_price": max(10, int(base_price * 0.25))
     }
 
-def generate_potion():
+def generate_potion(difficulty):
     potion_stats = [s for s in STAT_RU.keys() if s not in ["hp", "mp"]]
     all_potion_stats = potion_stats + ["adaptability"]
     stat = random.choice(all_potion_stats)
@@ -688,25 +692,30 @@ def generate_potion():
     potion_type = random.choice(["flat", "percent"]) if stat != "adaptability" else "flat"
     is_percent = potion_type == "percent"
 
+    # Масштабирование эффекта в зависимости от сложности (примерно +10% за уровень)
+    scale = 1 + difficulty * 0.1
+
     if stat == "adaptability":
-        base_value = round(random.uniform(0.001, 0.005), 3)
+        base_value = round(random.uniform(0.001, 0.005) * scale, 3)
         value = base_value
     else:
-        strong_stats = ["atk_spd", "lifesteal", "thorns", "crit_chance", "crit_damage", "accuracy", "evasion_rating", "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"]
+        strong_stats = ["atk_spd", "lifesteal", "thorns", "crit_chance", "crit_damage", 
+                        "accuracy", "evasion_rating", "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"]
         if stat in strong_stats:
             if is_percent:
-                base_value = round(random.uniform(0.1, 1.0), 1)
+                base_value = round(random.uniform(0.1, 1.0) * scale, 1)
             else:
-                base_value = round(random.uniform(0.02, 0.5), 2)
+                base_value = round(random.uniform(0.02, 0.5) * scale, 2)
         else:
             if is_percent:
-                base_value = round(random.uniform(0.2, 2.0), 1)
+                base_value = round(random.uniform(0.2, 2.0) * scale, 1)
             else:
-                base_value = random.randint(1, 3)
+                base_value = int(round(random.uniform(1, 3) * scale))
         value = base_value
 
-    base_price = int(base_value * random.uniform(20, 50) + 50)
-    price = max(50, min(5000, base_price))
+    # Цена: в среднем 3 боя на текущей сложности (10 * difficulty * 3 = 30 * difficulty) с разбросом
+    base_price = int(30 * difficulty * random.uniform(0.8, 1.2))
+    price = max(50, base_price)  # убрали верхний лимит 5000, оставили только нижний
 
     name = f"Зелье {STAT_RU[stat]} +{value}{'%' if is_percent else ''}"
     return {
@@ -895,7 +904,7 @@ async def update_potion_shop(player, force=False):
     if force or now - player.potion_shop_last_update > CONFIG["time_potion_update"]:
         player.potion_shop_assortment = []
         for _ in range(5):
-            player.potion_shop_assortment.append({"potion": generate_potion(), "sold": False})
+            player.potion_shop_assortment.append({"potion": generate_potion(player.max_unlocked_difficulty), "sold": False})
         player.potion_shop_last_update = now
         await save_player(player)
 
@@ -2246,13 +2255,14 @@ async def process_potions(query: CallbackQuery, callback_data: PotionCB):
     act = callback_data.action
 
     if act == "refresh":
-        if player.gold >= 500:
-            player.gold -= 500
+        cost = 50 * player.max_unlocked_difficulty  # стоимость = 5 боёв (10 * difficulty * 5)
+        if player.gold >= cost:
+            player.gold -= cost
             await update_potion_shop(player, force=True)
             await query.answer("Зелья обновлены!")
             await menu_potions(query, MenuCB(action="potions"))
         else:
-            await query.answer("Недостаточно золота!", show_alert=True)
+            await query.answer(f"Недостаточно золота! Нужно {cost}", show_alert=True)
 
     elif act == "buy":
         idx = callback_data.idx
