@@ -718,30 +718,35 @@ def generate_potion(difficulty):
     potion_type = random.choice(["flat", "percent"]) if stat != "adaptability" else "flat"
     is_percent = potion_type == "percent"
 
-    # Масштабирование эффекта в зависимости от сложности (примерно +10% за уровень)
-    scale = 1 + difficulty * 0.1
+    # Список "сильных" характеристик, которые должны иметь малые дробные прибавки
+    strong_stats = [
+        "atk_spd", "lifesteal", "thorns", "crit_chance", "crit_damage",
+        "accuracy", "evasion_rating", "magic_crit_chance", "magic_crit_damage",
+        "magic_shield_drain", "drop_chance"
+    ]
 
+    # Генерация значения эффекта (больше не зависит от сложности)
     if stat == "adaptability":
-        base_value = round(random.uniform(0.001, 0.005) * scale, 3)
-        value = base_value
+        # адаптивность растёт очень медленно
+        value = round(random.uniform(0.001, 0.005), 3)
     else:
-        strong_stats = ["atk_spd", "lifesteal", "thorns", "crit_chance", "crit_damage", 
-                        "accuracy", "evasion_rating", "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"]
         if stat in strong_stats:
             if is_percent:
-                base_value = round(random.uniform(0.1, 1.0) * scale, 1)
+                # процентный бонус для сильных статов (например, +0.5% к криту)
+                value = round(random.uniform(0.1, 1.0), 1)
             else:
-                base_value = round(random.uniform(0.02, 0.5) * scale, 2)
+                # плоский бонус для сильных статов (малые дробные значения)
+                value = round(random.uniform(0.01, 0.2), 2)
         else:
+            # обычные статы (сила, защита, здоровье и т.п.)
             if is_percent:
-                base_value = round(random.uniform(0.2, 2.0) * scale, 1)
+                value = round(random.uniform(0.2, 2.0), 1)
             else:
-                base_value = int(round(random.uniform(1, 3) * scale))
-        value = base_value
+                value = int(round(random.uniform(1, 3)))
 
-    # Цена: в среднем 3 боя на текущей сложности (10 * difficulty * 3 = 30 * difficulty) с разбросом
+    # Цена зависит от сложности (чем выше сложность, тем дороже зелье)
     base_price = int(30 * difficulty * random.uniform(0.8, 1.2))
-    price = max(50, base_price)  # убрали верхний лимит 5000, оставили только нижний
+    price = max(50, base_price)  # минимальная цена 50
 
     name = f"Зелье {STAT_RU[stat]} +{value}{'%' if is_percent else ''}"
     return {
