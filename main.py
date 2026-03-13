@@ -966,7 +966,7 @@ def simulate_combat_realtime(player, enemy):
         f"⚔️ <b>Бой начался!</b>\nУгроза: {enemy['difficulty']}",
         f"👤 <b>Вы:</b> ❤️ {p_stats['hp']:.1f}/{p_stats['max_hp']:.1f} | ✨ {p_stats['m_shield']} | 💧 {p_stats['mp']:.1f}/{p_stats['max_mp']:.1f}",
         f"😡 <b>{enemy['name']} [{enemy.get('class','')}]</b>: ❤️ {enemy['hp']:.1f}/{enemy['max_hp']:.1f}",
-        f"🎯 Ваш уклонен {get_evasion_chance(e_stats['accuracy'], p_stats['evasion_rating']):.1f}% | Уклон врага: {get_evasion_chance(p_stats['accuracy'], e_stats['evasion_rating']):.1f}%",
+        f"🎯 Ваш уклон {get_evasion_chance(e_stats['accuracy'], p_stats['evasion_rating']):.1f}% | Уклон врага: {get_evasion_chance(p_stats['accuracy'], e_stats['evasion_rating']):.1f}%",
     ]
 
     tick = 0.1
