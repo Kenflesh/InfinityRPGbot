@@ -944,8 +944,9 @@ def simulate_combat_realtime(player, enemy):
 
     log = [
         f"⚔️ <b>Бой начался!</b>\nУгроза: {enemy['difficulty']}",
-        f"👤 <b>Вы:</b> ❤️ {p_stats['hp']:.1f}/{p_stats['max_hp']:.1f} | 🛡 {current_shield:.1f} | 💧 {p_stats['mp']:.1f}/{p_stats['max_mp']:.1f}",
-        f"😡 <b>{enemy['name']} [{enemy.get('class','')}]</b>: ❤️ {enemy['hp']:.1f}/{enemy['max_hp']:.1f}"
+        f"👤 <b>Вы:</b> ❤️ {p_stats['hp']:.1f}/{p_stats['max_hp']:.1f} | ✨ {p_stats['m_shield']} | 💧 {p_stats['mp']:.1f}/{p_stats['max_mp']:.1f}",
+        f"😡 <b>{enemy['name']} [{enemy.get('class','')}]</b>: ❤️ {enemy['hp']:.1f}/{enemy['max_hp']:.1f}",
+        f"🎯 Шанс вашего уклонения: {get_evasion_chance(e_stats['accuracy'], p_stats['evasion_rating']):.1f}%\nШанс уклонения врага: {get_evasion_chance(p_stats['accuracy'], e_stats['evasion_rating']):.1f}%",
     ]
 
     tick = 0.1
@@ -985,7 +986,6 @@ def simulate_combat_realtime(player, enemy):
                         nonlocal current_shield
                         current_shield = min(current_shield + shield_gain, p_stats["max_hp"]*0.5)
                     else:
-                        # у врага тоже может быть щит? пока не реализовано
                         pass
                     msg += f"🔋 +{shield_gain:.1f} щита "
                 msg += f"🔥 {dmg:.1f} урона"
@@ -1651,7 +1651,7 @@ async def show_combat_stats(query: CallbackQuery, callback_data: CombatStatsCB):
     text = "📊 <b>Подробная статистика боя</b>\n\n"
     text += "👤 <b>Ваши статы (с учётом экипировки):</b>\n"
     text += f"❤️ Здоровье: {player.stats['hp']:.1f}/{t_stats['max_hp']:.1f} (+{t_stats['hp_regen']:.2f}/мин)\n"
-    text += f"🛡 Щит: {t_stats['m_shield']:.1f}\n"
+    text += f"✨МагЩит: {t_stats['m_shield']:.1f}\n"
     text += f"💧 Мана: {player.stats['mp']:.1f}/{t_stats['max_mp']:.1f} (+{t_stats['mp_regen']:.2f}/мин)\n"
     text += f"🗡 Атака: {t_stats['atk']:.2f} | 🔮 Маг.Атака: {t_stats['magic_atk']:.2f}\n"
     text += f"🛡 Защита: {t_stats['def']:.2f} | 💠 Маг.Сопр.: {t_stats['magic_res']:.2f}\n"
@@ -1862,10 +1862,15 @@ async def equip_to_slot(query: CallbackQuery, callback_data: EquipChoiceCB, stat
 async def uneq_item(query: CallbackQuery, callback_data: ItemCB):
     player = await get_player(query.from_user.id)
     idx = callback_data.idx
-    slots = list(player.equip.keys())
-    if idx >= len(slots):
+    if idx >= 900:  # экипированный предмет
+        slot_index = idx - 900
+        slots = list(player.equip.keys())
+        if slot_index >= len(slots):
+            return
+        slot = slots[slot_index]
+    else:
+        await query.answer("Ошибка: предмет не экипирован.")
         return
-    slot = slots[idx]
     item = player.equip[slot]
     if item:
         if len(player.inventory) < player.inv_slots:
@@ -1879,6 +1884,8 @@ async def uneq_item(query: CallbackQuery, callback_data: ItemCB):
             await menu_inv(query, MenuCB(action="inv"))
         else:
             await query.answer("В инвентаре нет места!", show_alert=True)
+    else:
+        await query.answer("Предмет не найден.")
 
 @dp.callback_query(ItemCB.filter(F.action=="sell"))
 async def sell_item(query: CallbackQuery, callback_data: ItemCB):
