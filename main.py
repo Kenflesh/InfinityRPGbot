@@ -1194,7 +1194,7 @@ def simulate_combat_realtime(player, enemy):
                             dmg -= absorbed
                         if dmg>0:
                             p_stats["hp"] -= dmg
-                            log.append(f"[{time_elapsed:.1f}с] 👹 Враг нанёс {dmg} урона")
+                            log.append(f"[{time_elapsed:.1f}с] 😡 Враг нанёс {dmg} урона")
                     else:
                         log.append(f"[{time_elapsed:.1f}с] 🌀 Вы уклонились")
 
@@ -1663,7 +1663,7 @@ async def show_combat_stats(query: CallbackQuery, callback_data: CombatStatsCB):
     text += f"🪓 Пробитие: {t_stats['armor_pen']} | ⚡ Ск.атаки: {t_stats['atk_spd']:.2f}\n"
     text += f"🍀 Мн.дропа: x{t_stats['drop_chance']:.2f} | 🌟 Адаптивность: {t_stats['adaptability']:.3f}\n\n"
 
-    text += "👹 <b>Статы врага:</b>\n"
+    text += "😡 <b>Статы врага:</b>\n"
     text += f"Класс: {enemy.get('class','Неизвестно')}\n"
     text += f"❤️ Здоровье: {enemy['hp']:.1f}/{enemy['max_hp']:.1f}\n"
     text += f"🗡 Атака: {enemy['atk']:.2f} | 🔮 Маг.Атака: {enemy['magic_atk']:.2f}\n"
@@ -1761,6 +1761,55 @@ async def choose_slot_for_equip(query: CallbackQuery, callback_data: ItemCB, sta
     builder.button(text="❌ Отмена", callback_data=MenuCB(action="inv").pack())
     builder.adjust(1)
     await safe_edit(query.message, "Выберите слот для экипировки:", reply_markup=builder.as_markup())
+
+@dp.callback_query(ItemCB.filter(F.action=="equip"))
+async def equip_item_single_slot(query: CallbackQuery, callback_data: ItemCB, state: FSMContext):
+    player = await get_player(query.from_user.id)
+    idx = callback_data.idx
+    if idx >= len(player.inventory):
+        await query.answer("Предмет не найден!")
+        return
+    item = player.inventory[idx]
+    allowed_slots = ITEM_TYPE_TO_SLOTS.get(item['item_type'], [])
+    if not allowed_slots:
+        await query.answer("Этот предмет нельзя надеть!")
+        return
+    # Берём первый слот
+    slot = allowed_slots[0]
+    # Проверяем, можно ли надеть (аналогично equip_to_slot)
+    hands_used = ITEM_HANDS_USED.get(item['item_type'],0)
+    if hands_used == 2:
+        if player.equip['right_hand'] is not None or player.equip['left_hand'] is not None:
+            await query.answer("Для двуручного оружия обе руки должны быть свободны!", show_alert=True)
+            return
+    else:
+        if player.equip[slot] is not None:
+            await query.answer("Этот слот занят! Сначала снимите предмет.", show_alert=True)
+            return
+        if slot in ['right_hand','left_hand']:
+            other_hand = 'left_hand' if slot=='right_hand' else 'right_hand'
+            if player.equip[other_hand] is not None:
+                other_item = player.equip[other_hand]
+                if ITEM_HANDS_USED.get(other_item['item_type'],0)==2:
+                    await query.answer("Нельзя надеть одноручное оружие, пока в другой руке двуручное!", show_alert=True)
+                    return
+
+    old_item = player.equip[slot]
+    if old_item:
+        if len(player.inventory) >= player.inv_slots:
+            await query.answer("Нет места в инвентаре для снятого предмета!", show_alert=True)
+            return
+        player.inventory.append(old_item)
+    player.equip[slot] = item
+    player.inventory.pop(idx)
+
+    if hands_used == 2:
+        other = 'left_hand' if slot=='right_hand' else 'right_hand'
+        player.equip[other] = item
+
+    await save_player(player)
+    await query.answer(f"Экипировано в {slot}!")
+    await menu_inv(query, MenuCB(action="inv"))
 
 @dp.callback_query(EquipChoiceCB.filter())
 async def equip_to_slot(query: CallbackQuery, callback_data: EquipChoiceCB, state: FSMContext):
