@@ -202,48 +202,48 @@ ENEMY_CLASSES = {
             "evasion_rating": 1.0,
             "crit_chance": 1.5,
             "crit_damage": 1.2,
-            "lifesteal": 0.1,
+            "lifesteal": 0.0,
             "thorns": 0.0,
-            "magic_crit_chance": 2.0,
-            "magic_crit_damage": 1.5,
-            "magic_shield_drain": 0.3
+            "magic_crit_chance": 3.0,
+            "magic_crit_damage": 2.5,
+            "magic_shield_drain": 0.5
         }
     },
     "berserker": {
         "name": "Берсерк",
         "mult": {
-            "hp": 1.0,
-            "atk": 1.5,
+            "hp": 0.6,
+            "atk": 3.5,
             "magic_atk": 0.0,
             "def": 0.6,
             "magic_res": 0.5,
-            "atk_spd": 1.5,
+            "atk_spd": 1.7,
             "accuracy": 1.1,
-            "evasion_rating": 0.5,
-            "crit_chance": 2.0,
+            "evasion_rating": 0.2,
+            "crit_chance": 1.0,
             "crit_damage": 1.5,
-            "lifesteal": 0.2,
+            "lifesteal": 0.1,
             "thorns": 0.0,
-            "magic_crit_chance": 0.0,
-            "magic_crit_damage": 1.0,
+            "magic_crit_chance": 0.2,
+            "magic_crit_damage": 0.5,
             "magic_shield_drain": 0.0
         }
     },
     "tank": {
         "name": "Танк",
         "mult": {
-            "hp": 1.8,
-            "atk": 0.6,
+            "hp": 3.0,
+            "atk": 0.5,
             "magic_atk": 0.0,
-            "def": 2.0,
+            "def": 3.0,
             "magic_res": 1.5,
-            "atk_spd": 0.5,
+            "atk_spd": 0.2,
             "accuracy": 0.8,
-            "evasion_rating": 0.2,
+            "evasion_rating": 0.0,
             "crit_chance": 0.2,
             "crit_damage": 1.0,
             "lifesteal": 0.0,
-            "thorns": 1.5,
+            "thorns": 0.0,
             "magic_crit_chance": 0.1,
             "magic_crit_damage": 1.0,
             "magic_shield_drain": 0.0
@@ -252,14 +252,14 @@ ENEMY_CLASSES = {
     "assassin": {
         "name": "Ассасин",
         "mult": {
-            "hp": 0.7,
-            "atk": 1.3,
+            "hp": 0.2,
+            "atk": 1.2,
             "magic_atk": 0.0,
             "def": 0.4,
             "magic_res": 0.4,
-            "atk_spd": 1.8,
-            "accuracy": 1.5,
-            "evasion_rating": 1.5,
+            "atk_spd": 3.0,
+            "accuracy": 2.0,
+            "evasion_rating": 2.0,
             "crit_chance": 3.0,
             "crit_damage": 2.0,
             "lifesteal": 0.3,
@@ -282,7 +282,7 @@ ENEMY_CLASSES = {
             "evasion_rating": 1.0,
             "crit_chance": 1.0,
             "crit_damage": 1.0,
-            "lifesteal": 0.8,
+            "lifesteal": 1.0,
             "thorns": 0.0,
             "magic_crit_chance": 0.5,
             "magic_crit_damage": 1.2,
@@ -292,20 +292,20 @@ ENEMY_CLASSES = {
     "thorn": {
         "name": "Шипастый",
         "mult": {
-            "hp": 1.3,
-            "atk": 0.7,
+            "hp": 2.0,
+            "atk": 0.1,
             "magic_atk": 0.0,
-            "def": 1.2,
-            "magic_res": 0.8,
-            "atk_spd": 0.6,
+            "def": 1.5,
+            "magic_res": 0.5,
+            "atk_spd": 0.1,
             "accuracy": 0.8,
-            "evasion_rating": 0.3,
-            "crit_chance": 0.3,
-            "crit_damage": 1.0,
+            "evasion_rating": 0.0,
+            "crit_chance": 0.0,
+            "crit_damage": 0.0,
             "lifesteal": 0.0,
-            "thorns": 2.5,
+            "thorns": 3.0,
             "magic_crit_chance": 0.0,
-            "magic_crit_damage": 1.0,
+            "magic_crit_damage": 0.0,
             "magic_shield_drain": 0.0
         }
     }
@@ -720,7 +720,10 @@ def generate_effect(effect_type, power, target=None):
         "stat": None  # для buff/debuff
     }
     if effect_type in ["damage","heal","shield","mp_restore","mp_burn"]:
-        base = power * random.uniform(5, 15)
+        if effect_type == "heal":
+            base = power * random.uniform(2, 6)  # уменьшено
+        else:
+            base = power * random.uniform(5, 15)
         effect["base_value"] = int(base) if effect_type in ["shield","mp_restore","mp_burn"] else round(base,1)
     elif effect_type in ["dot","hot"]:
         base = power * random.uniform(2, 8)
@@ -795,6 +798,8 @@ def generate_enemy(difficulty):
             e_stats[stat] = max(0, val)
 
     e_stats["atk_spd"] = max(0.05, (CONFIG["enemy_base_stats"]["atk_spd"] + difficulty * CONFIG["enemy_stat_scale"]["atk_spd"]) * variance() * class_mult.get("atk_spd",1.0))
+    e_stats["max_mp"] = max(20, int(difficulty * 15))  # базовая мана
+    e_stats["mp"] = e_stats["max_mp"]
 
     # Генерация заклинаний
     spells = []
@@ -1114,6 +1119,9 @@ def simulate_combat_realtime(player, enemy):
                                 current_shield -= absorbed
                                 th -= absorbed
                             if th>0:
+                                # Округляем до 1, если th меньше 1
+                                if th < 1:
+                                    th = 1
                                 p_stats["hp"] -= th
                                 msg += f" 🌵 -{th:.1f} HP"
                     if magic_dmg>0:
@@ -1131,20 +1139,25 @@ def simulate_combat_realtime(player, enemy):
                 e_cooldown += 1.0 / max(0.05, e_stats["atk_spd"])
                 spell_used = False
                 if enemy_spells:
+                    # Ищем заклинание, на которое хватит маны
                     available = [i for i,cd in enumerate(enemy_cooldowns) if cd<=0]
-                    if available:
-                        idx = random.choice(available)
+                    # Перемешаем, чтобы не было предвзятости
+                    random.shuffle(available)
+                    for idx in available:
                         spell = enemy_spells[idx]
-                        cd = spell["base_cooldown"] / (1 + spell["upgrades"]*0.1)
-                        enemy_cooldowns[idx] = cd
-                        msg = f"[{time_elapsed:.1f}с] 👹 {spell['name']}: "
-                        for eff in spell["effects"]:
-                            if eff["target"] == TARGET_ENEMY:  # враг применяет на игрока
-                                msg += apply_effect(eff, e_stats, p_stats, False, p_effects)
-                            else:
-                                msg += apply_effect(eff, e_stats, e_stats, False, e_effects)
-                        log.append(msg)
-                        spell_used = True
+                        if "mp" in e_stats and spell["mp_cost"] <= e_stats["mp"]:
+                            e_stats["mp"] -= spell["mp_cost"]
+                            cd = spell["base_cooldown"] / (1 + spell["upgrades"]*0.1)
+                            enemy_cooldowns[idx] = cd
+                            msg = f"[{time_elapsed:.1f}с] 👹 {spell['name']}: "
+                            for eff in spell["effects"]:
+                                if eff["target"] == TARGET_ENEMY:
+                                    msg += apply_effect(eff, e_stats, p_stats, False, p_effects)
+                                else:
+                                    msg += apply_effect(eff, e_stats, e_stats, False, e_effects)
+                            log.append(msg)
+                            spell_used = True
+                            break
                 if not spell_used:
                     # Обычная атака врага (упрощённо)
                     dmg = max(1, e_stats["atk"] - p_stats["def"])
