@@ -265,7 +265,7 @@ ENEMY_CLASSES = {
             "magic_atk": 0.0,
             "def": 2.0,                  # уменьшено с 3.0
             "magic_res": 1.5,
-            "atk_spd": 0.4,              # увеличено с 0.2
+            "atk_spd": 0.5,              # увеличено с 0.2
             "accuracy": 0.8,
             "evasion_rating": 0.0,
             "crit_chance": 0.2,
@@ -369,22 +369,22 @@ CONFIG = {
         "magic_shield_drain": 0.5
     },
     "enemy_stat_scale": {
-        "hp": 20,
-        "atk": 4,
-        "def": 1,
-        "m_shield": 8,
-        "magic_atk": 1.5,
-        "magic_res": 0.5,
-        "atk_spd": 0.02,
-        "accuracy": 0.5,
-        "evasion_rating": 0.1,
-        "crit_chance": 0.5,
-        "crit_damage": 5.0,
-        "lifesteal": 0.05,
-        "thorns": 0.05,
-        "magic_crit_chance": 0.5,
-        "magic_crit_damage": 5.0,
-        "magic_shield_drain": 0.1
+        "hp": 22,                 # было 20
+        "atk": 4.5,                # было 4
+        "def": 1.2,                # было 1
+        "m_shield": 8,             # оставить
+        "magic_atk": 1.7,          # было 1.5
+        "magic_res": 0.6,          # было 0.5
+        "atk_spd": 0.03,           # было 0.02
+        "accuracy": 0.5,           # оставить
+        "evasion_rating": 0.1,     # оставить
+        "crit_chance": 0.55,       # было 0.5
+        "crit_damage": 5.0,        # оставить
+        "lifesteal": 0.06,         # было 0.05
+        "thorns": 0.06,            # было 0.05
+        "magic_crit_chance": 0.55, # было 0.5
+        "magic_crit_damage": 5.0,  # оставить
+        "magic_shield_drain": 0.12 # было 0.1
     }
 }
 
