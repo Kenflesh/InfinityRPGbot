@@ -173,6 +173,7 @@ ENEMY_CLASSES = {
         "name": "Воин",
         "mult": {
             "hp": 1.2,
+            "m_shield": 0.0,
             "atk": 1.0,
             "magic_atk": 0.2,
             "def": 1.2,
@@ -193,6 +194,7 @@ ENEMY_CLASSES = {
         "name": "Маг",
         "mult": {
             "hp": 0.8,
+            "m_shield": 2.0,
             "atk": 0.2,
             "magic_atk": 1.5,
             "def": 0.5,
@@ -213,6 +215,7 @@ ENEMY_CLASSES = {
         "name": "Берсерк",
         "mult": {
             "hp": 0.6,
+            "m_shield": 0.0,
             "atk": 3.5,
             "magic_atk": 0.0,
             "def": 0.6,
@@ -233,6 +236,7 @@ ENEMY_CLASSES = {
         "name": "Танк",
         "mult": {
             "hp": 3.0,
+            "m_shield": 0.0,
             "atk": 0.5,
             "magic_atk": 0.0,
             "def": 3.0,
@@ -253,6 +257,7 @@ ENEMY_CLASSES = {
         "name": "Ассасин",
         "mult": {
             "hp": 0.2,
+            "m_shield": 0.0,
             "atk": 1.2,
             "magic_atk": 0.0,
             "def": 0.4,
@@ -273,6 +278,7 @@ ENEMY_CLASSES = {
         "name": "Вампир",
         "mult": {
             "hp": 1.1,
+            "m_shield": 0.5,
             "atk": 1.1,
             "magic_atk": 0.5,
             "def": 0.9,
@@ -293,6 +299,7 @@ ENEMY_CLASSES = {
         "name": "Шипастый",
         "mult": {
             "hp": 2.0,
+            "m_shield": 0.0,
             "atk": 0.1,
             "magic_atk": 0.0,
             "def": 1.5,
@@ -323,32 +330,34 @@ CONFIG = {
         "hp": 10,
         "atk": 5,
         "def": 2,
-        "magic_atk": 0,
-        "magic_res": 0,
+        "m_shield": 5, 
+        "magic_atk": 1,
+        "magic_res": 1,
         "atk_spd": 0.1,
-        "accuracy": 20,
+        "accuracy": 10,
         "evasion_rating": 10,
         "crit_chance": 2.0,
         "crit_damage": 150.0,
         "lifesteal": 0.0,
-        "thorns": 0.0,
+        "thorns": 1.0,
         "magic_crit_chance": 1.0,
         "magic_crit_damage": 150.0,
-        "magic_shield_drain": 0.0
+        "magic_shield_drain": 1.0
     },
     "enemy_stat_scale": {
         "hp": 25,
         "atk": 5,
         "def": 1,
+        "m_shield": 10,
         "magic_atk": 1.5,
         "magic_res": 0.5,
         "atk_spd": 0.02,
-        "accuracy": 1.0,
-        "evasion_rating": 0.05,
+        "accuracy": 0.5,
+        "evasion_rating": 0.1,
         "crit_chance": 0.5,
         "crit_damage": 5.0,
         "lifesteal": 0.1,
-        "thorns": 0.2,
+        "thorns": 0.05,
         "magic_crit_chance": 0.5,
         "magic_crit_damage": 5.0,
         "magic_shield_drain": 0.1
@@ -788,7 +797,7 @@ def generate_enemy(difficulty):
     e_stats = {}
     for stat in ["hp","atk","def","magic_atk","magic_res","accuracy","evasion_rating",
                  "crit_chance","crit_damage","lifesteal","thorns",
-                 "magic_crit_chance","magic_crit_damage","magic_shield_drain"]:
+                 "magic_crit_chance","magic_crit_damage","magic_shield_drain", "m_shield"]:
         base = CONFIG["enemy_base_stats"].get(stat,0)
         scale = CONFIG["enemy_stat_scale"].get(stat,0)
         val = (base + difficulty * scale) * variance() * class_mult.get(stat,1.0)
@@ -827,13 +836,13 @@ def generate_enemy(difficulty):
     power_multiplier = e_stats["hp"] / (norm_hp if norm_hp>0 else 1)
 
     names = {
-        "warrior": ["Воин","Рыцарь","Латинец"],
-        "mage": ["Маг","Чародей","Волшебник"],
+        "warrior": ["Воин","Рыцарь","Латинец", "Паладин"],
+        "mage": ["Маг","Чародей","Волшебник", "Заклинатель"],
         "berserker": ["Берсерк","Дикарь","Варвар"],
         "tank": ["Страж","Защитник","Гладиатор"],
-        "assassin": ["Ассасин","Убийца","Ниндзя"],
-        "vampire": ["Вампир","Кровопийца","Носферату"],
-        "thorn": ["Шипастый","Колючий","Ехидна"]
+        "assassin": ["Ассасин","Убийца","Ниндзя", "Разбойник"],
+        "vampire": ["Вампир","Кровопийца","Носферату", "Комар"],
+        "thorn": ["Шипастый","Колючий","Остряк"]
     }
     name_choices = names.get(class_key, ["Монстр"])
     name = f"{random.choice(name_choices)} {random.choice(['Слабый','Обычный','Свирепый','Древний','Элитный','Кошмарный'])}"
@@ -920,6 +929,8 @@ def simulate_combat_realtime(player, enemy):
     e_stats = enemy.copy()
 
     current_shield = p_stats['m_shield']
+    enemy_shield = e_stats.get('m_shield', 0)
+
     p_effects = []  # эффекты на игроке
     e_effects = []  # эффекты на враге
 
@@ -959,6 +970,7 @@ def simulate_combat_realtime(player, enemy):
     # Вспомогательные функции
     def apply_effect(effect, caster_stats, target_stats, is_player_caster, target_effects_list):
         # Применяет эффект к цели (добавляет в список эффектов или мгновенно)
+        nonlocal current_shield, enemy_shield, time_elapsed
         msg = ""
         eff_type = effect["type"]
         base = effect["base_value"]
@@ -977,22 +989,43 @@ def simulate_combat_realtime(player, enemy):
             res = target_stats.get("magic_res",0)
             dmg = max(1, dmg - res)
             if eff_type=="damage":
-                target_stats["hp"] -= dmg
-                # истощение энергии у атакующего (только если это игрок? нет, у всех может быть drain)
+                remaining_dmg = dmg
+                if target_stats is e_stats:
+                    # цель — враг
+                    if enemy_shield > 0:
+                        absorbed = min(remaining_dmg, enemy_shield)
+                        enemy_shield -= absorbed
+                        remaining_dmg -= absorbed
+                    if remaining_dmg > 0:
+                        target_stats["hp"] -= remaining_dmg
+                else:
+                    # цель — игрок
+                    if current_shield > 0:
+                        absorbed = min(remaining_dmg, current_shield)
+                        current_shield -= absorbed
+                        remaining_dmg -= absorbed
+                    if remaining_dmg > 0:
+                        target_stats["hp"] -= remaining_dmg
+
                 drain = caster_stats.get("magic_shield_drain",0)
                 if drain>0:
                     shield_gain = dmg * (drain/100.0)
                     if is_player_caster:
-                        nonlocal current_shield
                         current_shield = min(current_shield + shield_gain, p_stats["max_hp"]*0.5)
                     else:
-                        pass
+                        enemy_shield = min(enemy_shield + shield_gain, e_stats["max_hp"]*0.5)
                     msg += f"🔋 +{shield_gain:.1f} щита "
-                msg += f"🔥 {dmg:.1f} урона"
+                if target_stats is e_stats:
+                    msg += f"🔥 Вы нанесли {dmg:.1f} урона"
+                else:
+                    msg += f"🔥 Вам нанесли {dmg:.1f} урона"
             else: # mp_burn
                 if "max_mp" in target_stats:
                     target_stats["mp"] = max(0, target_stats["mp"] - dmg)
-                    msg += f"💧 -{dmg} маны"
+                    if target_stats is e_stats:
+                        msg += f"💧 Вы сожгли {dmg} маны"
+                    else:
+                        msg += f"💧 Вы потеряли {dmg} маны"
 
         elif eff_type in ["heal","mp_restore"]:
             if eff_type=="heal":
@@ -1016,15 +1049,15 @@ def simulate_combat_realtime(player, enemy):
         elif eff_type=="shield":
             if is_player_caster:
                 current_shield = min(current_shield + base, p_stats["max_hp"]*0.5)
+                msg += f"✨ Вы получили +{base} щита"
             else:
-                # у врага щит пока не реализован
-                pass
-            msg += f"🛡 +{base} щита"
+                enemy_shield = min(enemy_shield + base, e_stats["max_hp"]*0.5)
+                msg += f"✨ Враг получил +{base} щита"
 
         return msg
 
     def tick_effects(effects_list, target_stats, is_player_target):
-        nonlocal current_shield, time_elapsed
+        nonlocal current_shield, enemy_shield, time_elapsed
         for eff in effects_list[:]:
             eff_type = eff["type"]
             duration = eff.get("duration",0)
@@ -1034,12 +1067,32 @@ def simulate_combat_realtime(player, enemy):
                 # срабатывание по интервалу
                 if eff_type=="dot":
                     dmg = eff["base_value"]
-                    target_stats["hp"] -= dmg
-                    log.append(f"[{time_elapsed:.1f}с] 🌡 Дот {dmg:.1f} урона")
+                    remaining_dmg = dmg
+                    if is_player_target:
+                        # игрок
+                        if current_shield > 0:
+                            absorbed = min(remaining_dmg, current_shield)
+                            current_shield -= absorbed
+                            remaining_dmg -= absorbed
+                        if remaining_dmg > 0:
+                            target_stats["hp"] -= remaining_dmg
+                        log.append(f"[{time_elapsed:.1f}с] 🌡 Вы получили {dmg:.1f} урона от горения")
+                    else:
+                        # враг
+                        if enemy_shield > 0:
+                            absorbed = min(remaining_dmg, enemy_shield)
+                            enemy_shield -= absorbed
+                            remaining_dmg -= absorbed
+                        if remaining_dmg > 0:
+                            target_stats["hp"] -= remaining_dmg
+                        log.append(f"[{time_elapsed:.1f}с] 🌡 Враг получил {dmg:.1f} урона от горения")
                 elif eff_type=="hot":
                     heal = eff["base_value"]
                     target_stats["hp"] = min(target_stats["max_hp"], target_stats["hp"] + heal)
-                    log.append(f"[{time_elapsed:.1f}с] 💚 Хот +{heal:.1f} HP")
+                    if is_player_target:
+                        log.append(f"[{time_elapsed:.1f}с] 💚 Вы восстановили {heal:.1f} HP")
+                    else:
+                        log.append(f"[{time_elapsed:.1f}с] 💚 Враг восстановил {heal:.1f} HP")
                 eff["last_tick"] = time_elapsed
 
             # Уменьшение длительности
@@ -1126,9 +1179,15 @@ def simulate_combat_realtime(player, enemy):
                         total_dmg = int(phys_dmg + magic_dmg)
 
                         if total_dmg > 0:
-                            e_stats["hp"] -= total_dmg
+                            remaining_dmg = total_dmg
+                            if enemy_shield > 0:
+                                absorbed = min(remaining_dmg, enemy_shield)
+                                enemy_shield -= absorbed
+                                remaining_dmg -= absorbed
+                            if remaining_dmg > 0:
+                                e_stats["hp"] -= remaining_dmg
 
-                            msg = f"[{time_elapsed:.1f}с] 🗡 Атака: {total_dmg} урона"
+                            msg = f"[{time_elapsed:.1f}с] 🗡 Вы атаковали и нанесли {total_dmg} урона"
                             if phys_dmg>0:
                                 # Вампиризм только от физ
                                 if p_stats["lifesteal"]>0:
@@ -1194,7 +1253,7 @@ def simulate_combat_realtime(player, enemy):
                             dmg -= absorbed
                         if dmg>0:
                             p_stats["hp"] -= dmg
-                            log.append(f"[{time_elapsed:.1f}с] 😡 Враг нанёс {dmg} урона")
+                            log.append(f"[{time_elapsed:.1f}с] 😡 Враг нанёс вам {dmg} урона")
                     else:
                         log.append(f"[{time_elapsed:.1f}с] 🌀 Вы уклонились")
 
@@ -1651,7 +1710,7 @@ async def show_combat_stats(query: CallbackQuery, callback_data: CombatStatsCB):
     text = "📊 <b>Подробная статистика боя</b>\n\n"
     text += "👤 <b>Ваши статы (с учётом экипировки):</b>\n"
     text += f"❤️ Здоровье: {player.stats['hp']:.1f}/{t_stats['max_hp']:.1f} (+{t_stats['hp_regen']:.2f}/мин)\n"
-    text += f"✨МагЩит: {t_stats['m_shield']:.1f}\n"
+    text += f"✨ МагЩит: {t_stats['m_shield']:.1f}\n"
     text += f"💧 Мана: {player.stats['mp']:.1f}/{t_stats['max_mp']:.1f} (+{t_stats['mp_regen']:.2f}/мин)\n"
     text += f"🗡 Атака: {t_stats['atk']:.2f} | 🔮 Маг.Атака: {t_stats['magic_atk']:.2f}\n"
     text += f"🛡 Защита: {t_stats['def']:.2f} | 💠 Маг.Сопр.: {t_stats['magic_res']:.2f}\n"
@@ -1666,6 +1725,7 @@ async def show_combat_stats(query: CallbackQuery, callback_data: CombatStatsCB):
     text += "😡 <b>Статы врага:</b>\n"
     text += f"Класс: {enemy.get('class','Неизвестно')}\n"
     text += f"❤️ Здоровье: {enemy['hp']:.1f}/{enemy['max_hp']:.1f}\n"
+    text += f"✨ МагЩит: {enemy.get('m_shield', 0):.1f}\n" 
     text += f"🗡 Атака: {enemy['atk']:.2f} | 🔮 Маг.Атака: {enemy['magic_atk']:.2f}\n"
     text += f"🛡 Защита: {enemy['def']:.2f} | 💠 Маг.Сопр.: {enemy['magic_res']:.2f}\n"
     text += f"🎯 Точность: {enemy['accuracy']:.2f} | 💨 Уклонение: {enemy['evasion_rating']:.2f}\n"
