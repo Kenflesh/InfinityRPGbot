@@ -335,19 +335,20 @@ def generate_item(rarity):
 
     available_stats = {
         "weapon": ["atk", "magic_atk", "armor_pen", "crit_chance", "crit_damage", "atk_spd", "accuracy"],
-        "armor": ["def", "magic_res", "max_hp", "evasion_rating", "thorns", "accuracy"],
-        "accessory": ["hp_regen", "mp_regen", "lifesteal", "max_mp", "drop_chance", "crit_damage", "evasion_rating"]
+        "armor": ["def", "magic_res", "max_hp", "m_shield", "evasion_rating", "thorns", "accuracy"],
+        "accessory": ["hp_regen", "mp_regen", "lifesteal", "max_mp", "m_shield", "drop_chance", "crit_damage", "evasion_rating"]
     }
 
     chosen_stats = random.sample(available_stats[i_type], min(stats_count, len(available_stats[i_type])))
     item_stats = {}
 
     stat_mult = {
-        "atk": 0.2, "magic_atk": 0.2, "def": 0.2, "magic_res": 0.2,
-        "max_hp": 0.5, "max_mp": 0.5, "hp_regen": 0.1, "mp_regen": 0.1,
+        "atk": 0.1, "magic_atk": 0.1, "def": 0.2, "magic_res": 0.2,
+        "max_hp": 0.5, "max_mp": 0.5, "hp_regen": 0.05, "mp_regen": 0.05,
         "armor_pen": 0.5, "crit_chance": 0.2, "crit_damage": 0.2,
         "accuracy": 0.5, "evasion_rating": 0.25,
-        "atk_spd": 0.01, "drop_chance": 0.01, "lifesteal": 0.01, "thorns": 0.01
+        "atk_spd": 0.005, "drop_chance": 0.002, "lifesteal": 0.005, "thorns": 0.005,
+        "m_shield": 0.5
     }
 
     base_price = 0
@@ -356,7 +357,7 @@ def generate_item(rarity):
         mult = stat_mult.get(stat, 1.0)
 
         raw = (rarity * 0.25 * random.uniform(0.8, 1.2)) * mult
-        integer_stats = ["atk", "def", "max_hp", "max_mp", "magic_atk", "magic_res", "armor_pen"]
+        integer_stats = ["atk", "def", "max_hp", "max_mp", "magic_atk", "magic_res", "armor_pen", "m_shield"]
         if stat in integer_stats:
             base_val = max(1, int(raw))
         else:
