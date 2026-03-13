@@ -28,6 +28,7 @@ DB_FILE = os.path.join(DATA_DIR, 'database.json')
 
 db_lock = asyncio.Lock()
 db = {}
+enemy_cache = {}
 
 # ===================== СТАТЫ =====================
 STAT_RU = {
@@ -420,6 +421,11 @@ class SpellCB(CallbackData, prefix="spell"):
     idx: int = 0          # индекс в spell_inventory или в active_spells (для unequip)
     slot: int = -1        # слот для экипировки (0-4) или -1
 
+def fmt_float(num, max_precision=3):
+    # Форматирует число, убирая лишние нули в конце
+    s = f"{num:.{max_precision}f}".rstrip('0').rstrip('.')
+    return s
+
 # ===================== БАЗА ДАННЫХ =====================
 async def load_db():
     global db
@@ -438,6 +444,10 @@ async def save_db():
 def _save_db_unlocked():
     with open(DB_FILE, 'w', encoding='utf-8') as f:
         json.dump(db, f, ensure_ascii=False, indent=4)
+
+async def clear_enemy_cache(key: str, delay: int):
+    await asyncio.sleep(delay)
+    enemy_cache.pop(key, None)
 
 # ===================== КЛАСС ИГРОКА =====================
 class Player:
@@ -1416,7 +1426,7 @@ async def menu_train(query: CallbackQuery, callback_data: MenuCB):
             increment = base_inc
         else:
             increment = base_inc * player.stats['adaptability']
-        text += f"{i}. <b>{stat_name}</b> (+{increment:.3f})\n"
+        text += f"{i}. <b>{stat_name}</b> (+{fmt_float(increment)})\n"
         builder.button(text=f"{i}", callback_data=TrainCB(stat=stat).pack())
 
     builder.adjust(3)
@@ -1527,7 +1537,7 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
             # Дроп заклинания
             if enemy.get('spells') and random.random() < 0.05:
                 dropped = random.choice(enemy['spells']).copy()
-                if len(player.spell_inventory) < 20:  # лимит 20
+                if len(player.spell_inventory) < 20:
                     player.spell_inventory.append(dropped)
                     result_msg += f"\n📜 Вы получили заклинание: {dropped['name']}"
                 else:
@@ -1553,9 +1563,16 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
             from aiogram.utils.keyboard import InlineKeyboardBuilder
             back_builder = InlineKeyboardBuilder()
             back_builder.button(text="🔙 К охоте", callback_data=MenuCB(action="hunt").pack())
-            enemy_data_json = json.dumps(enemy)
-            enemy_data_b64 = base64.urlsafe_b64encode(enemy_data_json.encode()).decode()
-            back_builder.button(text="📊 Статистика боя", callback_data=CombatStatsCB(action="show", enemy_data=enemy_data_b64).pack())
+
+            # Сохраняем врага в кэш и создаём ключ
+            cache_key = f"{query.from_user.id}_{int(time.time())}_{random.randint(1000,9999)}"
+            enemy_cache[cache_key] = enemy
+            asyncio.create_task(clear_enemy_cache(cache_key, 60))
+
+            back_builder.button(
+                text="📊 Статистика боя",
+                callback_data=CombatStatsCB(action="show", enemy_data=cache_key).pack()
+            )
             back_builder.adjust(2)
             await safe_edit(query.message, f"{log_text}\n\n<b>{result_msg}</b>", reply_markup=back_builder.as_markup())
 
@@ -1582,8 +1599,15 @@ async def hunt_diff_input(message: Message, state: FSMContext):
 async def show_combat_stats(query: CallbackQuery, callback_data: CombatStatsCB):
     player = await get_player(query.from_user.id)
     t_stats = get_total_stats(player)
-    enemy_json = base64.urlsafe_b64decode(callback_data.enemy_data.encode()).decode()
-    enemy = json.loads(enemy_json)
+
+    # Получаем врага из кэша по ключу
+    key = callback_data.enemy_data
+    enemy = enemy_cache.get(key)
+    if not enemy:
+        await query.answer("Данные о бое устарели или не найдены.", show_alert=True)
+        return
+    # Можно сразу удалить из кэша, чтобы не занимать память
+    enemy_cache.pop(key, None)
 
     text = "📊 <b>Подробная статистика боя</b>\n\n"
     text += "👤 <b>Ваши статы (с учётом экипировки):</b>\n"
