@@ -1414,7 +1414,9 @@ async def get_item_view_data(player: Player, idx: int):
         s_ru = f"{STAT_EMOJI.get(stat_key,'')} {STAT_RU.get(stat_key,stat_key)}"
         bonus_type = stat_data.get('bonus_type','flat')
         bonus_symbol = '%' if bonus_type=='percent' else ''
-        text += f"• {s_ru}: {stat_data['current']:.2f}{bonus_symbol} (база {stat_data['base']:.2f}{bonus_symbol}, улучшений: {stat_data['upgrades']}) - Улучшить: 💰 {upg_cost} (+{stat_data['base']:.2f}{bonus_symbol})\n"
+        curr_str = fmt_float(stat_data['current'], 4)
+        base_str = fmt_float(stat_data['base'], 4)
+        text += f"• {s_ru}: {curr_str}{bonus_symbol} (база {base_str}{bonus_symbol}, улучшений: {stat_data['upgrades']}) - Улучшить: 💰 {upg_cost} (+{base_str}{bonus_symbol})\n"
         c_idx = 900 + list(player.equip.keys()).index(slot_name) if is_equip else real_idx
         b.button(text=f"Улучшить {s_ru}", callback_data=ItemCB(action="upg", idx=c_idx, stat=stat_key).pack())
 
