@@ -63,7 +63,7 @@ ITEM_TYPE_RU = {
     "weapon2h_physical": "⚔️ Двуручное физ.",
     "weapon2h_magical": "🔮 Двуручное маг.",
     "shield": "🛡 Щит",
-    "tome": "📖 Книга",
+    "tome": "📖 Фолиант",
     "tome2h": "📚 Тяжёлый фолиант",
     "boots": "👢 Обувь",
     "belt": "🧣 Пояс",
@@ -349,14 +349,14 @@ CONFIG = {
 
     "enemy_base_stats": {
         "hp": 10,
-        "atk": 3,                 # было 4
-        "def": 2,
+        "atk": 2.5,                 # было 4
+        "def": 0,
         "m_shield": 2,
         "magic_atk": 1,
         "magic_res": 1,
         "atk_spd": 0.1,
         "accuracy": 10,
-        "evasion_rating": 5,
+        "evasion_rating": 2,
         "crit_chance": 1.0,        # было 2.0
         "crit_damage": 150.0,
         "lifesteal": 0.0,
@@ -516,24 +516,24 @@ class Player:
         self.potion_shop_assortment = []
         self.potion_shop_last_update = 0
 
-        # Базовые статы (без учёта предметов и процентных зелий)
+        # Базовые (и начальные) статы (без учёта предметов и процентных зелий)
         self.base_stats = {
             "max_hp": 100,
             "max_mp": 50,
-            "atk": 10,
-            "def": 5,
+            "atk": 5,
+            "def": 0,
             "m_shield": 0,
             "crit_chance": 5.0,
             "crit_damage": 150.0,
-            "accuracy": 20.0,
-            "evasion_rating": 5.0,
-            "atk_spd": 0.15,
+            "accuracy": 10.0,
+            "evasion_rating": 2.0,
+            "atk_spd": 0.10,
             "hp_regen": 5.0,
             "mp_regen": 5.0,
             "drop_chance": 1.0,
             "lifesteal": 0.0,
             "armor_pen": 0,
-            "magic_atk": 0,
+            "magic_atk": 5,
             "magic_res": 0,
             "thorns": 0.0,
             "adaptability": 1.0,
