@@ -966,8 +966,10 @@ def generate_enemy(difficulty):
         "class": enemy_class["name"],
         "class_key": class_key,
         "difficulty": difficulty,
-        "max_hp": e_stats["hp"],
+        "max_hp": e_stats["hp"],          # уже есть
         "hp": e_stats["hp"],
+        "max_mp": e_stats["max_mp"],      # добавляем
+        "mp": e_stats["mp"],
         "atk": e_stats["atk"],
         "def": e_stats["def"],
         "magic_atk": e_stats["magic_atk"],
