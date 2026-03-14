@@ -142,18 +142,17 @@ ITEM_HANDS_USED = {
 
 ITEM_ALLOWED_STATS = {
     "weapon1h_physical": ["atk", "atk_spd", "crit_chance", "crit_damage", "armor_pen", "accuracy", "lifesteal"],
-    "weapon1h_magical": ["magic_atk", "atk_spd", "crit_chance", "crit_damage", "accuracy", "lifesteal", "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"],
+    "weapon1h_magical": ["magic_atk", "atk_spd", "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"],
     "weapon2h_physical": ["atk", "atk_spd", "crit_chance", "crit_damage", "armor_pen", "accuracy", "lifesteal"],
     "weapon2h_magical": ["magic_atk", "atk_spd", "crit_chance", "crit_damage", "accuracy", "lifesteal", "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"],
-    "shield": ["def", "magic_res", "max_hp", "m_shield", "thorns", "evasion_rating"],
-    "tome": ["magic_atk", "max_mp", "mp_regen", "crit_chance", "crit_damage", "accuracy", "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"],
-    "tome2h": ["atk", "def", "max_hp", "max_mp", "hp_regen", "mp_regen", "atk_spd",
-               "crit_chance", "crit_damage", "accuracy", "evasion_rating", "lifesteal",
+    "shield": ["def", "magic_res", "max_hp", "m_shield", "thorns"],
+    "tome": ["magic_atk", "max_mp", "m_shield", "mp_regen", "crit_chance", "crit_damage", "accuracy", "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"],
+    "tome2h": ["def", "max_hp", "max_mp", "hp_regen", "mp_regen", "atk_spd", "evasion_rating", "lifesteal",
                "armor_pen", "magic_atk", "magic_res", "thorns", "m_shield",
                "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"],
     "boots": ["def", "evasion_rating", "hp_regen", "max_hp"],
-    "belt": ["def", "max_hp", "hp_regen", "armor_pen"],
-    "robe": ["def", "magic_res", "max_hp", "hp_regen", "mp_regen", "thorns"],
+    "belt": ["def", "evasion_rating", "max_hp", "hp_regen"],
+    "robe": ["def", "magic_res", "max_hp", "hp_regen", "mp_regen", "thorns", "evasion_rating"],
     "helmet": ["def", "max_hp", "accuracy", "evasion_rating", "thorns"],
     "amulet": ["magic_atk", "max_mp", "mp_regen", "crit_chance", "crit_damage", "accuracy", "evasion_rating", "lifesteal", "m_shield", "thorns", "hp_regen", "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"],
     "ring": ["atk", "magic_atk", "def", "magic_res", "max_hp", "max_mp", "hp_regen", "mp_regen",
@@ -749,8 +748,9 @@ def generate_item(item_type, rarity):
 
         integer_stats = ["atk", "def", "max_hp", "max_mp",
                          "magic_atk", "magic_res", "armor_pen", "m_shield"]
+        
         if stat in integer_stats:
-            base_val = max(1, int(raw))
+            base_val = max(0.5, round(raw, 2))   # сохраняем дробную часть, минимум 1.0
         else:
             base_val = max(0.01, round(raw, 2))
 
@@ -1700,6 +1700,12 @@ async def process_any_callback(query: CallbackQuery, bot: Bot):
     player = await get_player(query.from_user.id)
     await apply_passive_regen(player)
 
+    # Разрешаем некоторые callback даже если игрок мёртв или занят
+    if query.data:
+        if query.data.startswith("cbtstats:") or query.data.startswith("menu:hunt"):
+            # Пропускаем блокировку, позволяя другим обработчикам сработать
+            raise SkipHandler()
+
     if player.state != 'idle':
         remaining = player.state_end_time - time.time()
         minutes = int(remaining//60)
@@ -1707,8 +1713,7 @@ async def process_any_callback(query: CallbackQuery, bot: Bot):
         if player.state == 'dead':
             await query.answer(f"Вы мертвы. Воскрешение через: {minutes} мин {seconds} сек.", show_alert=True)
         else:
-            state_rus = {"training": "Тренируетесь", "expedition": "В экспедиции"}.get(
-                player.state, player.state)
+            state_rus = {"training": "Тренируетесь", "expedition": "В экспедиции"}.get(player.state, player.state)
             await query.answer(f"Вы заняты ({state_rus}). Осталось: {minutes} мин {seconds} сек.", show_alert=True)
         return
 
@@ -2179,10 +2184,6 @@ async def equip_to_slot(query: CallbackQuery, callback_data: EquipChoiceCB, stat
     player.equip[slot] = item
     player.inventory.pop(idx)
 
-    if hands_used == 2:
-        other = 'left_hand' if slot == 'right_hand' else 'right_hand'
-        player.equip[other] = item
-
     await save_player(player)
     await query.answer(f"Экипировано в {slot}!")
     await menu_inv(query, MenuCB(action="inv"))
@@ -2206,9 +2207,6 @@ async def uneq_item(query: CallbackQuery, callback_data: ItemCB):
         if len(player.inventory) < player.inv_slots:
             player.inventory.append(item)
             player.equip[slot] = None
-            if ITEM_HANDS_USED.get(item['item_type'], 0) == 2:
-                other = 'left_hand' if slot == 'right_hand' else 'right_hand'
-                player.equip[other] = None
             await save_player(player)
             await query.answer("Предмет снят!")
             await menu_inv(query, MenuCB(action="inv"))
