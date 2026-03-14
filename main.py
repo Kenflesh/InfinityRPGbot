@@ -1074,11 +1074,13 @@ def simulate_combat_realtime(player, enemy):
             # магический крит
             if random.random()*100 < caster_stats.get("magic_crit_chance", 0):
                 dmg *= caster_stats.get("magic_crit_damage", 200)/100.0
-            # сопротивление
+            # сопротивление (простое вычитание без минимума 1)
             res = target_stats.get("magic_res", 0)
-            dmg = max(1, dmg - res)
+            dmg = max(0, dmg - res)
+
             if eff_type == "damage":
                 remaining_dmg = dmg
+                absorbed = 0.0
                 if target_stats is e_stats:
                     # цель — враг
                     if enemy_shield > 0:
@@ -1098,25 +1100,28 @@ def simulate_combat_realtime(player, enemy):
 
                 drain = caster_stats.get("magic_shield_drain", 0)
                 if drain > 0:
-                    shield_gain = dmg * (drain/100.0)
+                    shield_gain = dmg * (drain/100.0)  # от исходного урона
                     if is_player_caster:
-                        current_shield = min(
-                            current_shield + shield_gain, p_stats["max_hp"]*0.5)
+                        current_shield = min(current_shield + shield_gain, p_stats["max_hp"]*0.5)
                     else:
-                        enemy_shield = min(
-                            enemy_shield + shield_gain, e_stats["max_hp"]*0.5)
+                        enemy_shield = min(enemy_shield + shield_gain, e_stats["max_hp"]*0.5)
                     msg += f"🔋 +{shield_gain:.1f} щита "
+
                 if target_stats is e_stats:
                     msg += f"🔥 Вы нанесли {dmg:.1f} урона"
+                    if absorbed > 0:
+                        msg += f" (поглощено {absorbed:.1f})"
                 else:
                     msg += f"🔥 Вам нанесли {dmg:.1f} урона"
+                    if absorbed > 0:
+                        msg += f" (поглощено {absorbed:.1f})"
             else:  # mp_burn
                 if "max_mp" in target_stats:
                     target_stats["mp"] = max(0, target_stats["mp"] - dmg)
                     if target_stats is e_stats:
-                        msg += f"💧 Вы сожгли {dmg} маны"
+                        msg += f"💧 Вы сожгли {dmg:.1f} маны"
                     else:
-                        msg += f"💧 Вы потеряли {dmg} маны"
+                        msg += f"💧 Вы потеряли {dmg:.1f} маны"
 
         elif eff_type in ["heal", "mp_restore"]:
             if eff_type == "heal":
@@ -1262,29 +1267,28 @@ def simulate_combat_realtime(player, enemy):
                             break
                 if not spell_used:
                     # Определяем, может ли игрок совершить обычную атаку
-                    can_phys = has_phys_weapon or (
-                        not has_phys_weapon and has_free_hand)
+                    can_phys = has_phys_weapon or (not has_phys_weapon and has_free_hand)
                     can_magic = has_magic_weapon
 
                     if can_phys or can_magic:
-                        phys_dmg = 0
-                        magic_dmg = 0
+                        phys_dmg = 0.0
+                        magic_dmg = 0.0
                         crit_flag = ""
                         magic_crit_flag = ""
 
-                        # Базовый урон с учётом защиты
+                        # Базовый урон с учётом защиты и пробития
                         if can_phys:
-                            base_phys = max(0, p_stats["atk"] - e_stats["def"])
+                            effective_def = max(0, e_stats["def"] - p_stats["armor_pen"])
+                            # Формула: урон = атака² / (атака + защита)
+                            base_phys = p_stats["atk"] * p_stats["atk"] / (p_stats["atk"] + effective_def) if p_stats["atk"] + effective_def > 0 else 0
                             phys_dmg = base_phys * random.uniform(0.8, 1.2)
                         if can_magic:
-                            base_magic = max(
-                                0, p_stats["magic_atk"] - e_stats["magic_res"])
+                            effective_mres = max(0, e_stats["magic_res"])
+                            base_magic = p_stats["magic_atk"] * p_stats["magic_atk"] / (p_stats["magic_atk"] + effective_mres) if p_stats["magic_atk"] + effective_mres > 0 else 0
                             magic_dmg = base_magic * random.uniform(0.8, 1.2)
 
                         # Проверка попадания физической атаки
-                        hit = random.random() * \
-                            100 > get_evasion_chance(
-                                p_stats["accuracy"], e_stats["evasion_rating"])
+                        hit = random.random() * 100 > get_evasion_chance(p_stats["accuracy"], e_stats["evasion_rating"])
                         if hit:
                             if can_phys:
                                 # Физический крит
@@ -1292,7 +1296,7 @@ def simulate_combat_realtime(player, enemy):
                                     phys_dmg *= p_stats["crit_damage"] / 100.0
                                     crit_flag = " 💥 КРИТ!"
                         else:
-                            phys_dmg = 0  # промах — физический урон обнуляется
+                            phys_dmg = 0.0  # промах — физический урон обнуляется
 
                         # Магический крит (не зависит от уклонения)
                         if can_magic:
@@ -1300,49 +1304,50 @@ def simulate_combat_realtime(player, enemy):
                                 magic_dmg *= p_stats["magic_crit_damage"] / 100.0
                                 magic_crit_flag = " 💫 КРИТ!"
 
-                        raw_total = phys_dmg + magic_dmg
+                        total_dmg = phys_dmg + magic_dmg
 
-                        if raw_total > 0:
-                            total_dmg = int(raw_total)
+                        if total_dmg > 0:
+                            # Применяем щит врага
                             remaining_dmg = total_dmg
+                            absorbed = 0.0
                             if enemy_shield > 0:
                                 absorbed = min(remaining_dmg, enemy_shield)
                                 enemy_shield -= absorbed
                                 remaining_dmg -= absorbed
+
                             if remaining_dmg > 0:
                                 e_stats["hp"] -= remaining_dmg
+                                msg = f"[{time_elapsed:.3f}с] 🗡{crit_flag}{magic_crit_flag} Вы атаковали и нанесли {remaining_dmg:.1f} урона"
+                            else:
+                                msg = f"[{time_elapsed:.3f}с] 🗡{crit_flag}{magic_crit_flag} Вы атаковали, но весь урон был поглощён щитом"
 
-                            msg = f"[{time_elapsed:.3f}с] 🗡{crit_flag}{magic_crit_flag} Вы атаковали и нанесли {total_dmg} урона"
+                            if absorbed > 0:
+                                msg += f" (поглощено {absorbed:.1f})"
 
-                            # Вампиризм (только от физической части)
+                            # Вампиризм (только от физической части) – от исходного урона
                             if phys_dmg > 0 and p_stats["lifesteal"] > 0:
                                 ls = phys_dmg * (p_stats["lifesteal"] / 100.0)
-                                p_stats["hp"] = min(
-                                    p_stats["max_hp"], p_stats["hp"] + ls)
+                                p_stats["hp"] = min(p_stats["max_hp"], p_stats["hp"] + ls)
                                 msg += f" 🩸 +{ls:.1f} HP"
 
                             # Шипы врага (только от физической части)
                             if phys_dmg > 0 and e_stats["thorns"] > 0:
                                 th = phys_dmg * (e_stats["thorns"] / 100.0)
                                 if current_shield > 0:
-                                    absorbed = min(th, current_shield)
-                                    current_shield -= absorbed
-                                    th -= absorbed
+                                    absorbed_th = min(th, current_shield)
+                                    current_shield -= absorbed_th
+                                    th -= absorbed_th
                                 if th > 0:
-                                    if th < 1:
-                                        th = 1
                                     p_stats["hp"] -= th
                                     msg += f" 🌵 -{th:.1f} HP"
 
                             # Истощение энергии (от магической части)
                             if magic_dmg > 0 and p_stats["magic_shield_drain"] > 0:
-                                drain = magic_dmg * \
-                                    (p_stats["magic_shield_drain"] / 100.0)
-                                current_shield = min(
-                                    current_shield + drain, p_stats["max_hp"] * 0.5)
+                                drain = magic_dmg * (p_stats["magic_shield_drain"] / 100.0)
+                                current_shield = min(current_shield + drain, p_stats["max_hp"] * 0.5)
                                 msg += f" 🔋 +{drain:.1f} щита"
                         else:
-                            # Атака не нанесла урона
+                            # Атака не нанесла урона (например, из-за нулевых показателей)
                             msg = f"[{time_elapsed:.3f}с] 🗡 Вы атаковали, но не смогли пробить защиту{crit_flag}{magic_crit_flag}"
 
                         log.append(msg)
@@ -1377,44 +1382,46 @@ def simulate_combat_realtime(player, enemy):
                             break
                 if not spell_used:
                     # Обычная атака врага
-                    dmg = max(1, e_stats["atk"] - p_stats["def"])
+                    base_dmg = e_stats["atk"] * e_stats["atk"] / (e_stats["atk"] + p_stats["def"]) if e_stats["atk"] + p_stats["def"] > 0 else 0
+                    dmg = base_dmg * random.uniform(0.8, 1.2)
                     crit_flag = ""
                     if random.random() * 100 > get_evasion_chance(e_stats["accuracy"], p_stats["evasion_rating"]):
                         if random.random() * 100 < e_stats["crit_chance"]:
-                            dmg = int(dmg * (e_stats["crit_damage"] / 100.0))
+                            dmg *= e_stats["crit_damage"] / 100.0
                             crit_flag = " 💥 КРИТ!"
                         # Щит игрока
+                        absorbed = 0.0
                         if current_shield > 0:
                             absorbed = min(dmg, current_shield)
                             current_shield -= absorbed
                             dmg -= absorbed
                         if dmg > 0:
                             p_stats["hp"] -= dmg
-                            msg = f"[{time_elapsed:.3f}с] 😡 Враг нанёс вам {crit_flag} {dmg} урона"
+                            msg = f"[{time_elapsed:.3f}с] 😡 Враг нанёс вам{crit_flag} {dmg:.1f} урона"
+                        else:
+                            msg = f"[{time_elapsed:.3f}с] 😡 Враг атаковал, но весь урон был поглощён щитом"
+                        if absorbed > 0:
+                            msg += f" (поглощено {absorbed:.1f})"
 
-                            # Вампиризм врага (только если урон прошёл)
-                            if e_stats["lifesteal"] > 0:
-                                heal = dmg * (e_stats["lifesteal"] / 100.0)
-                                if heal > 0:
-                                    e_stats["hp"] = min(
-                                        e_stats["max_hp"], e_stats["hp"] + heal)
-                                    msg += f" 🩸 +{heal:.1f} HP"
+                        # Вампиризм врага (только если урон прошёл)
+                        if dmg > 0 and e_stats["lifesteal"] > 0:
+                            heal = dmg * (e_stats["lifesteal"] / 100.0)
+                            if heal > 0:
+                                e_stats["hp"] = min(e_stats["max_hp"], e_stats["hp"] + heal)
+                                msg += f" 🩸 +{heal:.1f} HP"
 
-                            log.append(msg)
+                        log.append(msg)
 
-                            # Шипы игрока (ответный урон)
-                            if p_stats["thorns"] > 0:
-                                th = dmg * (p_stats["thorns"] / 100.0)
-                                if enemy_shield > 0:
-                                    absorbed = min(th, enemy_shield)
-                                    enemy_shield -= absorbed
-                                    th -= absorbed
-                                if th > 0:
-                                    if th < 1:
-                                        th = 1
-                                    e_stats["hp"] -= th
-                                    log.append(
-                                        f"[{time_elapsed:.3f}с] 🌵 Ваши шипы нанесли врагу {th:.1f} урона")
+                        # Шипы игрока (ответный урон)
+                        if p_stats["thorns"] > 0:
+                            th = dmg * (p_stats["thorns"] / 100.0)
+                            if enemy_shield > 0:
+                                absorbed_th = min(th, enemy_shield)
+                                enemy_shield -= absorbed_th
+                                th -= absorbed_th
+                            if th > 0:
+                                e_stats["hp"] -= th
+                                log.append(f"[{time_elapsed:.3f}с] 🌵 Ваши шипы нанесли врагу {th:.1f} урона")
                     else:
                         log.append(f"[{time_elapsed:.3f}с] 🌀 Вы уклонились")
 
@@ -2746,11 +2753,12 @@ async def view_active_spell(query: CallbackQuery, callback_data: SpellCB):
         elif eff['type'] == 'mp_burn':
             text += f"• Сжигает {eff['base_value']} маны {target}\n"
 
-            text += f"\n💰 Стоимость маны: {spell['mp_cost']}\n"
-            text += f"⏱ Базовая перезарядка: {spell['base_cooldown']:.1f}с\n"
-            text += f"📈 Улучшений: {spell['upgrades']}\n"
+    # Общая информация о заклинании (вне цикла)
+    text += f"\n💰 Стоимость маны: {spell['mp_cost']}\n"
+    text += f"⏱ Базовая перезарядка: {spell['base_cooldown']:.1f}с\n"
+    text += f"📈 Улучшений: {spell['upgrades']}\n"
 
-            upg_cost = int(spell['mp_cost'] * 10 + spell['upgrades'] * 20)  # примерная стоимость улучшения
+    upg_cost = int(spell['mp_cost'] * 10 + spell['upgrades'] * 20)  # примерная стоимость улучшения
 
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     b = InlineKeyboardBuilder()
