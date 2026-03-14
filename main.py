@@ -1395,7 +1395,7 @@ def simulate_combat_realtime(player, enemy):
                 random.shuffle(available)
                 for idx in available:
                     spell = enemy_spells[idx]
-                    if "mp" in e_stats and spell["mp_cost"] <= e_stats["mp"]:
+                    if e_stats.get("mp", 0) >= spell["mp_cost"]:
                         e_stats["mp"] -= spell["mp_cost"]
                         cd = spell["base_cooldown"] / (1 + spell["upgrades"] * 0.1)
                         enemy_cooldowns[idx] = t + cd
