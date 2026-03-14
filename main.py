@@ -1177,7 +1177,7 @@ def simulate_combat_realtime(player, enemy):
                         if remaining_dmg > 0:
                             target_stats["hp"] -= remaining_dmg
                         log.append(
-                            f"[{time_elapsed:.3f}с] 🌡 Вы получили {dmg:.1f} урона от горения")
+                            f"[{fmt_float(time_elapsed, 6)}с] 🌡 Вы получили {dmg:.1f} урона от горения")
                     else:
                         # враг
                         if enemy_shield > 0:
@@ -1187,17 +1187,17 @@ def simulate_combat_realtime(player, enemy):
                         if remaining_dmg > 0:
                             target_stats["hp"] -= remaining_dmg
                         log.append(
-                            f"[{time_elapsed:.3f}с] 🌡 Враг получил {dmg:.1f} урона от горения")
+                            f"[{fmt_float(time_elapsed, 6)}с] 🌡 Враг получил {dmg:.1f} урона от горения")
                 elif eff_type == "hot":
                     heal = eff["base_value"]
                     target_stats["hp"] = min(
                         target_stats["max_hp"], target_stats["hp"] + heal)
                     if is_player_target:
                         log.append(
-                            f"[{time_elapsed:.3f}с] 💚 Вы восстановили {heal:.1f} HP")
+                            f"[{fmt_float(time_elapsed, 6)}с] 💚 Вы восстановили {heal:.1f} HP")
                     else:
                         log.append(
-                            f"[{time_elapsed:.3f}с] 💚 Враг восстановил {heal:.1f} HP")
+                            f"[{fmt_float(time_elapsed, 6)}с] 💚 Враг восстановил {heal:.1f} HP")
                 eff["last_tick"] = time_elapsed
 
             # Уменьшение длительности
@@ -1207,7 +1207,7 @@ def simulate_combat_realtime(player, enemy):
                     effects_list.remove(eff)
                     if eff["type"] == "time_stop":
                         log.append(
-                            f"[{time_elapsed:.3f}с] ⏸ Время возобновилось")
+                            f"[{fmt_float(time_elapsed, 6)}с] ⏸ Время возобновилось")
 
     while p_stats["hp"] > 0 and e_stats["hp"] > 0 and time_elapsed < max_time:
         # Реген раз в секунду
@@ -1251,7 +1251,7 @@ def simulate_combat_realtime(player, enemy):
                             spell_cooldowns[i] = cd
                             # Применяем все эффекты заклинания
                             msg_lines = [
-                                f"[{time_elapsed:.3f}с] ✨ {spell['name']}:"]
+                                f"[{fmt_float(time_elapsed, 6)}с] ✨ {spell['name']}:"]
                             for eff in spell["effects"]:
                                 effect_msg = ""
                                 if eff["target"] == TARGET_ENEMY:
@@ -1275,11 +1275,11 @@ def simulate_combat_realtime(player, enemy):
                         magic_dmg = 0.0
                         crit_flag = ""
                         magic_crit_flag = ""
+                        missed = False  # флаг промаха
 
                         # Базовый урон с учётом защиты и пробития
                         if can_phys:
                             effective_def = max(0, e_stats["def"] - p_stats["armor_pen"])
-                            # Формула: урон = атака² / (атака + защита)
                             base_phys = p_stats["atk"] * p_stats["atk"] / (p_stats["atk"] + effective_def) if p_stats["atk"] + effective_def > 0 else 0
                             phys_dmg = base_phys * random.uniform(0.8, 1.2)
                         if can_magic:
@@ -1291,14 +1291,14 @@ def simulate_combat_realtime(player, enemy):
                         hit = random.random() * 100 > get_evasion_chance(p_stats["accuracy"], e_stats["evasion_rating"])
                         if hit:
                             if can_phys:
-                                # Физический крит
                                 if random.random() * 100 < p_stats["crit_chance"]:
                                     phys_dmg *= p_stats["crit_damage"] / 100.0
                                     crit_flag = " 💥 КРИТ!"
                         else:
-                            phys_dmg = 0.0  # промах — физический урон обнуляется
+                            phys_dmg = 0.0
+                            missed = True  # запоминаем промах
 
-                        # Магический крит (не зависит от уклонения)
+                        # Магический крит
                         if can_magic:
                             if random.random() * 100 < p_stats["magic_crit_chance"]:
                                 magic_dmg *= p_stats["magic_crit_damage"] / 100.0
@@ -1317,20 +1317,18 @@ def simulate_combat_realtime(player, enemy):
 
                             if remaining_dmg > 0:
                                 e_stats["hp"] -= remaining_dmg
-                                msg = f"[{time_elapsed:.3f}с] 🗡{crit_flag}{magic_crit_flag} Вы атаковали и нанесли {remaining_dmg:.1f} урона"
+                                msg = f"[{fmt_float(time_elapsed, 6)}с] 🗡{crit_flag}{magic_crit_flag} Вы атаковали и нанесли {remaining_dmg:.1f} урона"
                             else:
-                                msg = f"[{time_elapsed:.3f}с] 🗡{crit_flag}{magic_crit_flag} Вы атаковали, но весь урон был поглощён щитом"
+                                msg = f"[{fmt_float(time_elapsed, 6)}с] 🗡{crit_flag}{magic_crit_flag} Вы атаковали, но весь урон был поглощён щитом"
 
                             if absorbed > 0:
                                 msg += f" (поглощено {absorbed:.1f})"
 
-                            # Вампиризм (только от физической части) – от исходного урона
+                            # Вампиризм, шипы, истощение...
                             if phys_dmg > 0 and p_stats["lifesteal"] > 0:
                                 ls = phys_dmg * (p_stats["lifesteal"] / 100.0)
                                 p_stats["hp"] = min(p_stats["max_hp"], p_stats["hp"] + ls)
-                                msg += f" 🩸 +{ls:.1f} HP"
-
-                            # Шипы врага (только от физической части)
+                                msg += f" 🩸 +{fmt_float(ls,4)} HP"
                             if phys_dmg > 0 and e_stats["thorns"] > 0:
                                 th = phys_dmg * (e_stats["thorns"] / 100.0)
                                 if current_shield > 0:
@@ -1339,16 +1337,18 @@ def simulate_combat_realtime(player, enemy):
                                     th -= absorbed_th
                                 if th > 0:
                                     p_stats["hp"] -= th
-                                    msg += f" 🌵 -{th:.1f} HP"
-
-                            # Истощение энергии (от магической части)
+                                    msg += f" 🌵 -{fmt_float(th,4)} HP"
                             if magic_dmg > 0 and p_stats["magic_shield_drain"] > 0:
                                 drain = magic_dmg * (p_stats["magic_shield_drain"] / 100.0)
                                 current_shield = min(current_shield + drain, p_stats["max_hp"] * 0.5)
-                                msg += f" 🔋 +{drain:.1f} щита"
+                                msg += f" 🔋 +{fmt_float(drain,4)} щита"
                         else:
-                            # Атака не нанесла урона (например, из-за нулевых показателей)
-                            msg = f"[{time_elapsed:.3f}с] 🗡 Вы атаковали, но не смогли пробить защиту{crit_flag}{magic_crit_flag}"
+                            if missed and can_phys and not can_magic:
+                                msg = f"[{fmt_float(time_elapsed, 6)}с] 🗡{magic_crit_flag} Вы промахнулись"
+                            elif missed and can_phys and can_magic and magic_dmg == 0:
+                                msg = f"[{fmt_float(time_elapsed, 6)}с] 🗡{magic_crit_flag} Вы промахнулись"
+                            else:
+                                msg = f"[{fmt_float(time_elapsed, 6)}с] 🗡{crit_flag}{magic_crit_flag} Вы атаковали, но не смогли пробить защиту"
 
                         log.append(msg)
 
@@ -1369,7 +1369,7 @@ def simulate_combat_realtime(player, enemy):
                             cd = spell["base_cooldown"] / \
                                 (1 + spell["upgrades"] * 0.1)
                             enemy_cooldowns[idx] = cd
-                            msg = f"[{time_elapsed:.3f}с] Враг использует заклинание:✨ {spell['name']}: "
+                            msg = f"[{fmt_float(time_elapsed, 6)}с] Враг использует заклинание:✨ {spell['name']}: "
                             for eff in spell["effects"]:
                                 if eff["target"] == TARGET_ENEMY:
                                     msg += apply_effect(eff, e_stats,
@@ -1397,9 +1397,9 @@ def simulate_combat_realtime(player, enemy):
                             dmg -= absorbed
                         if dmg > 0:
                             p_stats["hp"] -= dmg
-                            msg = f"[{time_elapsed:.3f}с] 😡 Враг нанёс вам{crit_flag} {dmg:.1f} урона"
+                            msg = f"[{fmt_float(time_elapsed, 6)}с] 😡 Враг нанёс вам{crit_flag} {dmg:.1f} урона"
                         else:
-                            msg = f"[{time_elapsed:.3f}с] 😡 Враг атаковал, но весь урон был поглощён щитом"
+                            msg = f"[{fmt_float(time_elapsed, 6)}с] 😡 Враг атаковал, но весь урон был поглощён щитом"
                         if absorbed > 0:
                             msg += f" (поглощено {absorbed:.1f})"
 
@@ -1421,9 +1421,9 @@ def simulate_combat_realtime(player, enemy):
                                 th -= absorbed_th
                             if th > 0:
                                 e_stats["hp"] -= th
-                                log.append(f"[{time_elapsed:.3f}с] 🌵 Ваши шипы нанесли врагу {th:.1f} урона")
+                                log.append(f"[{fmt_float(time_elapsed, 6)}с] 🌵 Ваши шипы нанесли врагу {th:.1f} урона")
                     else:
-                        log.append(f"[{time_elapsed:.3f}с] 🌀 Вы уклонились")
+                        log.append(f"[{fmt_float(time_elapsed, 6)}с] 🌀 Вы уклонились")
 
         time_elapsed += tick
 
