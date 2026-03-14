@@ -1238,20 +1238,30 @@ def simulate_combat_realtime(player, enemy):
 
     # Основной цикл событий
     while p_stats["hp"] > 0 and e_stats["hp"] > 0 and t < max_time:
-        # Собираем все будущие времена событий
-        times = [p_next_action, e_next_action, next_regen]
+        # Собираем все будущие времена событий (строго больше текущего t)
+        times = []
+        if p_next_action > t + 1e-9:
+            times.append(p_next_action)
+        if e_next_action > t + 1e-9:
+            times.append(e_next_action)
+        if next_regen > t + 1e-9:
+            times.append(next_regen)
         for eff in p_effects:
-            if "next_tick" in eff:
+            if "next_tick" in eff and eff["next_tick"] > t + 1e-9:
                 times.append(eff["next_tick"])
-            if "end_time" in eff:
+            if "end_time" in eff and eff["end_time"] > t + 1e-9:
                 times.append(eff["end_time"])
         for eff in e_effects:
-            if "next_tick" in eff:
+            if "next_tick" in eff and eff["next_tick"] > t + 1e-9:
                 times.append(eff["next_tick"])
-            if "end_time" in eff:
+            if "end_time" in eff and eff["end_time"] > t + 1e-9:
                 times.append(eff["end_time"])
 
-        next_t = min(t for t in times if t > t + 1e-9)
+        if not times:
+            # Нет будущих событий – бой не может продолжаться, выходим
+            break
+
+        next_t = min(times)
         if next_t >= max_time:
             break
         t = next_t
