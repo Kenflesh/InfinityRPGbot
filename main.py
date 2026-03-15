@@ -2007,11 +2007,6 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
         result_msg += f"\n❤️ Осталось здоровья: {player.hp:.1f}/{t_stats['max_hp']:.1f}, 💧 маны: {player.mp:.1f}/{t_stats['max_mp']:.1f}"
 
         if is_win:
-            base_gold = 10 * player.current_difficulty
-            actual_gold = int(base_gold * enemy['power_mult'] * t_stats["drop_chance"])
-            player.gold += actual_gold
-            result_msg += f"\n\n💰 Найдено золота: {actual_gold}, теперь у вас {player.gold}"
-
             drop_chance_scaled = 0.2 * enemy['power_mult']
             if random.random() < drop_chance_scaled:
                 item_type = random.choice(ITEM_TYPES)
@@ -2019,9 +2014,15 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
                 item = generate_item(item_type, eff_diff)
                 if len(player.inventory) < player.inv_slots:
                     player.inventory.append(item)
-                    result_msg += f"\n📦 Выпал предмет: {item['name']}"
+                    result_msg += f"\n\n📦 Выпал предмет: {item['name']}"
                 else:
-                    result_msg += "\n📦 Предмет выпал, но инвентарь полон!"
+                    result_msg += "\n\n📦 Предмет выпал, но инвентарь полон!"
+            
+            base_gold = 10 * player.current_difficulty
+            actual_gold = int(base_gold * enemy['power_mult'] * t_stats["drop_chance"])
+            player.gold += actual_gold
+            
+            result_msg += f"\n\n💰 Найдено золота: {actual_gold}, теперь у вас {player.gold}"
 
             # Дроп заклинания
             if enemy.get('spells') and random.random() < 0.05:
