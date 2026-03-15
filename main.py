@@ -202,6 +202,7 @@ SUFFIXES = [
 ENEMY_CLASSES = {
     "warrior": {
         "name": "Воин",
+        "atkType": "Physical",
         "mult": {
             "hp": 1.2,
             "atk": 1.0,
@@ -210,22 +211,19 @@ ENEMY_CLASSES = {
             "magic_res": 0.8,
             "atk_spd": 1.0,
             "accuracy": 1.0,
-            "evasion_rating": 0.8,
+            "evasion_rating": 0.6,
             "crit_chance": 0.5,
             "crit_damage": 1.0,
-            "lifesteal": 0.0,
-            # "thorns": 0.2,  # удалено
             "magic_crit_chance": 0.2,
             "magic_crit_damage": 1.0,
-            "magic_shield_drain": 0.0
         }
     },
     "mage": {
         "name": "Маг",
+        "atkType": "Magic",
         "mult": {
             "hp": 0.8,
             "m_shield": 1.5,
-            "atk": 0.2,
             "magic_atk": 1.5,
             "def": 0.5,
             "magic_res": 1.3,
@@ -243,14 +241,15 @@ ENEMY_CLASSES = {
     },
     "berserker": {
         "name": "Берсерк",
+        "atkType": "Physical",
         "mult": {
             "hp": 0.8,
             "atk": 1.8,                   # было 2.5
             "magic_atk": 0.0,
-            "def": 0.6,
-            "magic_res": 0.5,
+            "def": 0.2,
+            "magic_res": 0.2,
             "atk_spd": 1.5,
-            "accuracy": 1.1,
+            "accuracy": 1.5,
             "evasion_rating": 0.2,
             "crit_chance": 1.0,
             "crit_damage": 1.5,
@@ -263,6 +262,7 @@ ENEMY_CLASSES = {
     },
     "tank": {
         "name": "Танк",
+        "atkType": "Physical",
         "mult": {
             "hp": 2.5,
             "atk": 1.0,                    # было 0.8
@@ -283,39 +283,37 @@ ENEMY_CLASSES = {
     },
     "assassin": {
         "name": "Ассасин",
+        "atkType": "Physical",
         "mult": {
-            "hp": 0.5,                      # было 0.3
+            "hp": 0.7,                      # было 0.3
             "atk": 1.5,                      # было 2.0
             "magic_atk": 0.0,
-            "def": 0.4,
-            "magic_res": 0.4,
-            "atk_spd": 2.0,                  # было 3.0
-            "accuracy": 2.0,
+            "def": 0.2,
+            "magic_res": 0.3,
+            "atk_spd": 1.5,                  # было 3.0
+            "accuracy": 1.8,
             "evasion_rating": 1.5,            # было 2.0
-            "crit_chance": 2.0,               # было 3.0
-            "crit_damage": 2.0,
+            "crit_chance": 1.5,               # было 3.0
+            "crit_damage": 1.0,
             "lifesteal": 0.2,                 # было 0.3
-            "thorns": 0.0,
-            "magic_crit_chance": 0.0,
-            "magic_crit_damage": 1.0,
-            "magic_shield_drain": 0.0
         }
     },
     "vampire": {
         "name": "Вампир",
+        "atkType": "Physical",
         "mult": {
-            "hp": 1.1,
-            "m_shield": 0.5,
+            "hp": 1.0,
+            "m_shield": 0.25,
             "atk": 1.0,
             "magic_atk": 0.5,
-            "def": 0.9,
-            "magic_res": 0.9,
+            "def": 0.5,
+            "magic_res": 0.5,
             "atk_spd": 1.0,
             "accuracy": 1.0,
             "evasion_rating": 1.0,
             "crit_chance": 1.0,
             "crit_damage": 1.0,
-            "lifesteal": 0.3,                  # было 1.0
+            "lifesteal": 0.3,
             "thorns": 0.0,
             "magic_crit_chance": 0.5,
             "magic_crit_damage": 1.2,
@@ -324,22 +322,16 @@ ENEMY_CLASSES = {
     },
     "thorn": {
         "name": "Шипастый",
+        "atkType": "Physical",
         "mult": {
             "hp": 2.0,
-            "atk": 0.3,
+            "atk": 0.2,
             "magic_atk": 0.0,
             "def": 1.5,
             "magic_res": 0.5,
-            "atk_spd": 0.1,
+            "atk_spd": 0.25,
             "accuracy": 0.8,
-            "evasion_rating": 0.0,
-            "crit_chance": 0.0,
-            "crit_damage": 0.0,
-            "lifesteal": 0.0,
-            "thorns": 1.5,                      # было 2.0
-            "magic_crit_chance": 0.0,
-            "magic_crit_damage": 0.0,
-            "magic_shield_drain": 0.0
+            "thorns": 1.0,
         }
     }
 }
@@ -364,8 +356,8 @@ CONFIG = {
         "evasion_rating": 2,
         "crit_chance": 1.0,        # было 2.0
         "crit_damage": 150.0,
-        "lifesteal": 0.0,
-        "thorns": 0.0,             # было 0.5 (теперь только у thorn)
+        "lifesteal": 0.05,
+        "thorns": 0.5,             # было 0.5 (теперь только у thorn)
         "magic_crit_chance": 0.5,   # было 1.0
         "magic_crit_damage": 150.0,
         "magic_shield_drain": 0.2   # было 0.5
@@ -382,11 +374,11 @@ CONFIG = {
         "evasion_rating": 0.1,     # оставить
         "crit_chance": 0.3,        # было 0.55
         "crit_damage": 3.0,        # было 5.0
-        "lifesteal": 0.03,         # было 0.06
-        "thorns": 0.0,             # убрали (0.06)
-        "magic_crit_chance": 0.3,  # было 0.55
-        "magic_crit_damage": 3.0,  # было 5.0
-        "magic_shield_drain": 0.06  # было 0.12
+        "lifesteal": 0.05,         # было 0.06
+        "thorns": 0.25,            
+        "magic_crit_chance": 0.3,  
+        "magic_crit_damage": 1.0,  
+        "magic_shield_drain": 0.1
     }
 }
 
@@ -920,6 +912,7 @@ def generate_enemy(difficulty):
     class_key = random.choice(list(ENEMY_CLASSES.keys()))
     enemy_class = ENEMY_CLASSES[class_key]
     class_mult = enemy_class["mult"]
+    atk_type = enemy_class.get("atkType", "Physical")
 
     e_stats = {}
     for stat in ["hp", "atk", "def", "magic_atk", "magic_res", "accuracy", "evasion_rating",
@@ -978,6 +971,7 @@ def generate_enemy(difficulty):
         "name": name,
         "class": enemy_class["name"],
         "class_key": class_key,
+        "atk_type": atk_type,     
         "difficulty": difficulty,
         "max_hp": e_stats["hp"],          # уже есть
         "hp": e_stats["hp"],
@@ -1095,6 +1089,13 @@ def simulate_combat_realtime(player, enemy):
                 has_magic_weapon = True
     has_free_hand = player.equip.get('right_hand') is None or player.equip.get('left_hand') is None
 
+    # Вспомогательная функция для форматирования состояния
+    def status_str(target_stats, shield, is_player):
+        hp = target_stats['hp']
+        max_hp = target_stats['max_hp']
+        shield_part = f" ✨ {shield:.1f}" if shield > 0 else ""
+        return f"| ❤️ {hp:.1f}/{max_hp:.1f}{shield_part}"
+
     log = [
         f"⚔️ <b>Бой начался!</b>\nУгроза: {enemy['difficulty']}",
         f"👤 <b>Вы:</b> ❤️ {p_stats['hp']:.1f}/{p_stats['max_hp']:.1f} | ✨ {p_stats['m_shield']:.1f} | 💧 {p_stats['mp']:.1f}/{p_stats['max_mp']:.1f}",
@@ -1110,7 +1111,13 @@ def simulate_combat_realtime(player, enemy):
 
     p_next_action = p_action_interval
     e_next_action = e_action_interval
-    next_regen = 1.0
+
+    # Вспомогательная функция применения регенерации за интервал времени
+    def apply_regen(target_stats, delta):
+        target_stats["hp"] = min(target_stats["max_hp"], target_stats["hp"] + target_stats["hp_regen"] / 60.0 * delta)
+        target_stats["mp"] = min(target_stats["max_mp"], target_stats["mp"] + target_stats["mp_regen"] / 60.0 * delta)
+
+    prev_t = 0.0
 
     # Вспомогательная функция применения эффекта
     def apply_effect(effect, caster_stats, target_stats, is_player_caster, target_effects_list):
@@ -1161,10 +1168,12 @@ def simulate_combat_realtime(player, enemy):
                     msg += f"🔥 Вы нанесли {dmg:.1f} урона"
                     if absorbed > 0:
                         msg += f" (поглощено {absorbed:.1f})"
+                    msg += " " + status_str(target_stats, enemy_shield, False)
                 else:
                     msg += f"🔥 Вам нанесли {dmg:.1f} урона"
                     if absorbed > 0:
                         msg += f" (поглощено {absorbed:.1f})"
+                    msg += " " + status_str(target_stats, current_shield, True)
             else:  # mp_burn
                 if "max_mp" in target_stats:
                     target_stats["mp"] = max(0, target_stats["mp"] - dmg)
@@ -1176,11 +1185,18 @@ def simulate_combat_realtime(player, enemy):
         elif eff_type in ["heal", "mp_restore"]:
             if eff_type == "heal":
                 target_stats["hp"] = min(target_stats["max_hp"], target_stats["hp"] + base)
-                msg += f"💚 +{base:.1f} HP"
+                if target_stats is e_stats:
+                    msg += f"💚 +{base:.1f} HP врагу"
+                else:
+                    msg += f"💚 +{base:.1f} HP"
+                msg += " " + status_str(target_stats, enemy_shield if target_stats is e_stats else current_shield, target_stats is p_stats)
             else:
                 if "max_mp" in target_stats:
                     target_stats["mp"] = min(target_stats["max_mp"], target_stats["mp"] + base)
-                    msg += f"💧 +{base:.1f} MP"
+                    if target_stats is e_stats:
+                        msg += f"💧 +{base:.1f} MP врагу"
+                    else:
+                        msg += f"💧 +{base:.1f} MP"
 
         elif eff_type in ["dot", "hot"]:
             effect_copy = effect.copy()
@@ -1202,9 +1218,11 @@ def simulate_combat_realtime(player, enemy):
             if is_player_caster:
                 current_shield = min(current_shield + base, p_stats["max_hp"]*0.5)
                 msg += f"✨ Вы получили +{base:.1f} щита"
+                msg += " " + status_str(p_stats, current_shield, True)
             else:
                 enemy_shield = min(enemy_shield + base, e_stats["max_hp"]*0.5)
                 msg += f"✨ Враг получил +{base:.1f} щита"
+                msg += " " + status_str(e_stats, enemy_shield, False)
 
         return msg
 
@@ -1225,7 +1243,7 @@ def simulate_combat_realtime(player, enemy):
                                 remaining_dmg -= absorbed
                             if remaining_dmg > 0:
                                 target_stats["hp"] -= remaining_dmg
-                            log.append(f"[{fmt_float(t,6)}с] 🌡 Вы получили {fmt_float(dmg, 4)} урона от горения")
+                            log.append(f"[{fmt_float(t,6)}с] 🌡 Вы получили {fmt_float(dmg, 4)} урона от горения {status_str(target_stats, current_shield, True)}")
                         else:
                             if enemy_shield > 0:
                                 absorbed = min(remaining_dmg, enemy_shield)
@@ -1233,14 +1251,14 @@ def simulate_combat_realtime(player, enemy):
                                 remaining_dmg -= absorbed
                             if remaining_dmg > 0:
                                 target_stats["hp"] -= remaining_dmg
-                            log.append(f"[{fmt_float(t,6)}с] 🌡 Враг получил {fmt_float(dmg, 4)} урона от горения")
+                            log.append(f"[{fmt_float(t,6)}с] 🌡 Враг получил {fmt_float(dmg, 4)} урона от горения {status_str(target_stats, enemy_shield, False)}")
                     elif eff_type == "hot":
                         heal = eff["base_value"]
                         target_stats["hp"] = min(target_stats["max_hp"], target_stats["hp"] + heal)
                         if is_player_target:
-                            log.append(f"[{fmt_float(t,6)}с] 💚 Вы восстановили {heal:.1f} HP")
+                            log.append(f"[{fmt_float(t,6)}с] 💚 Вы восстановили {heal:.1f} HP {status_str(target_stats, current_shield, True)}")
                         else:
-                            log.append(f"[{fmt_float(t,6)}с] 💚 Враг восстановил {heal:.1f} HP")
+                            log.append(f"[{fmt_float(t,6)}с] 💚 Враг восстановил {heal:.1f} HP {status_str(target_stats, enemy_shield, False)}")
                     eff["next_tick"] += eff["interval"]
                     eff["duration_remaining"] -= eff["interval"]
                     if eff["duration_remaining"] <= 0:
@@ -1259,8 +1277,6 @@ def simulate_combat_realtime(player, enemy):
             times.append(p_next_action)
         if e_next_action > t + 1e-9:
             times.append(e_next_action)
-        if next_regen > t + 1e-9:
-            times.append(next_regen)
         for eff in p_effects:
             if "next_tick" in eff and eff["next_tick"] > t + 1e-9:
                 times.append(eff["next_tick"])
@@ -1279,21 +1295,18 @@ def simulate_combat_realtime(player, enemy):
         next_t = min(times)
         if next_t >= max_time:
             break
+        delta = next_t - t
         t = next_t
+
+        # Применяем регенерацию за прошедший интервал времени
+        apply_regen(p_stats, delta)
+        apply_regen(e_stats, delta)
 
         # Проверка остановки времени
         player_stopped = any(eff['type'] == 'time_stop' for eff in p_effects)
         enemy_stopped = any(eff['type'] == 'time_stop' for eff in e_effects)
 
-        # Регенерация
-        if abs(t - next_regen) < 1e-9:
-            p_stats["hp"] = min(p_stats["max_hp"], p_stats["hp"] + p_stats["hp_regen"]/60.0)
-            p_stats["mp"] = min(p_stats["max_mp"], p_stats["mp"] + p_stats["mp_regen"]/60.0)
-            e_stats["hp"] = min(e_stats["max_hp"], e_stats["hp"] + e_stats.get("hp_regen", 0)/60.0)
-            e_stats["mp"] = min(e_stats["max_mp"], e_stats["mp"] + e_stats.get("mp_regen", 0)/60.0)
-            next_regen = t + 1.0
-
-        # Обработка эффектов
+        # Обработка эффектов (тики dot/hot и окончания)
         process_effects(p_effects, p_stats, True)
         process_effects(e_effects, e_stats, False)
 
@@ -1389,20 +1402,26 @@ def simulate_combat_realtime(player, enemy):
                             drain = magic_dmg * (p_stats["magic_shield_drain"] / 100.0)
                             current_shield = min(current_shield + drain, p_stats["max_hp"] * 0.5)
                             msg += f" 🔋 +{fmt_float(drain, 4)} щита"
+
+                        # Добавляем состояние врага и игрока
+                        msg += f" {status_str(e_stats, enemy_shield, False)}"
+                        if p_stats["hp"] > 0:  # если игрок ещё жив
+                            msg += f" {status_str(p_stats, current_shield, True)}"
+                        log.append(msg)
                     else:
                         if missed and can_phys and not can_magic:
                             msg = f"[{fmt_float(t,6)}с] 🗡{magic_crit_flag} Вы промахнулись"
                         elif missed and can_phys and can_magic and magic_dmg == 0:
                             msg = f"[{fmt_float(t,6)}с] 🗡{magic_crit_flag} Вы промахнулись"
                         else:
-                            msg = f"[{fmt_float(t,6)}с] 🗡{crit_flag}{magic_crit_flag} Вы атаковали, не смогли пробить защиту"
-
-                    log.append(msg)
+                            msg = f"[{fmt_float(t,6)}с] 🗡{crit_flag}{magic_crit_flag} Вы атаковали, но не пробили защиту"
+                        log.append(msg)
 
         # Действие врага
         if abs(t - e_next_action) < 1e-9 and not enemy_stopped and e_stats["hp"] > 0:
             e_next_action = t + e_action_interval
             spell_used = False
+            # Попытка использовать заклинание (остаётся без изменений)
             if enemy_spells:
                 available = [i for i, cd in enumerate(enemy_cooldowns) if cd <= t]
                 random.shuffle(available)
@@ -1421,19 +1440,38 @@ def simulate_combat_realtime(player, enemy):
                         log.append(msg)
                         spell_used = True
                         break
+
             if not spell_used:
-                base_dmg = e_stats["atk"] * e_stats["atk"] / (e_stats["atk"] + p_stats["def"]) if e_stats["atk"] + p_stats["def"] > 0 else 0
-                dmg = base_dmg * random.uniform(0.8, 1.2)
-                crit_flag = ""
+                # Определяем тип атаки врага
+                if enemy.get('atk_type') == 'Magic':
+                    # Магическая атака
+                    base_dmg = e_stats["magic_atk"] * e_stats["magic_atk"] / (e_stats["magic_atk"] + p_stats["magic_res"]) if e_stats["magic_atk"] + p_stats["magic_res"] > 0 else 0
+                    dmg = base_dmg * random.uniform(0.8, 1.2)
+                    crit_chance = e_stats.get("magic_crit_chance", 0)
+                    crit_damage = e_stats.get("magic_crit_damage", 150)
+                    crit_flag = " 💫 КРИТ!"
+                else:
+                    # Физическая атака
+                    base_dmg = e_stats["atk"] * e_stats["atk"] / (e_stats["atk"] + p_stats["def"]) if e_stats["atk"] + p_stats["def"] > 0 else 0
+                    dmg = base_dmg * random.uniform(0.8, 1.2)
+                    crit_chance = e_stats["crit_chance"]
+                    crit_damage = e_stats["crit_damage"]
+                    crit_flag = " 💥 КРИТ!"
+
+                # Проверка попадания
                 if random.random() * 100 > get_evasion_chance(e_stats["accuracy"], p_stats["evasion_rating"]):
-                    if random.random() * 100 < e_stats["crit_chance"]:
-                        dmg *= e_stats["crit_damage"] / 100.0
-                        crit_flag = " 💥 КРИТ!"
+                    if random.random() * 100 < crit_chance:
+                        dmg *= crit_damage / 100.0
+                    else:
+                        crit_flag = ""
+
+                    # Поглощение щитом
                     absorbed = 0.0
                     if current_shield > 0:
                         absorbed = min(dmg, current_shield)
                         current_shield -= absorbed
                         dmg -= absorbed
+
                     if dmg > 0:
                         p_stats["hp"] -= dmg
                         msg = f"[{fmt_float(t,6)}с] 😡 Враг нанёс вам{crit_flag} {dmg:.1f} урона"
@@ -1442,15 +1480,21 @@ def simulate_combat_realtime(player, enemy):
                     if absorbed > 0:
                         msg += f" (поглощено {absorbed:.1f})"
 
+                    # Вампиризм врага
                     if dmg > 0 and e_stats["lifesteal"] > 0:
                         heal = dmg * (e_stats["lifesteal"] / 100.0)
                         if heal > 0:
                             e_stats["hp"] = min(e_stats["max_hp"], e_stats["hp"] + heal)
                             msg += f" 🩸 +{fmt_float(heal, 4)} HP"
 
+                    # Добавляем состояние игрока и врага
+                    msg += f" {status_str(p_stats, current_shield, True)}"
+                    if e_stats["hp"] > 0:
+                        msg += f" {status_str(e_stats, enemy_shield, False)}"
                     log.append(msg)
 
-                    if p_stats["thorns"] > 0:
+                    # Шипы игрока (отражают урон)
+                    if p_stats["thorns"] > 0 and dmg > 0:
                         th = dmg * (p_stats["thorns"] / 100.0)
                         if enemy_shield > 0:
                             absorbed_th = min(th, enemy_shield)
@@ -1458,7 +1502,7 @@ def simulate_combat_realtime(player, enemy):
                             th -= absorbed_th
                         if th > 0:
                             e_stats["hp"] -= th
-                            log.append(f"[{fmt_float(t,6)}с] 🌵 Ваши шипы нанесли врагу {fmt_float(th, 4)} урона")
+                            log.append(f"[{fmt_float(t,6)}с] 🌵 Ваши шипы нанесли врагу {fmt_float(th, 4)} урона {status_str(e_stats, enemy_shield, False)}")
                 else:
                     log.append(f"[{fmt_float(t,6)}с] 🌀 Вы уклонились")
 
@@ -1469,7 +1513,7 @@ def simulate_combat_realtime(player, enemy):
     player.mp = max(0, p_stats["mp"])
 
     if t >= max_time:
-        return False, log, "⏳ Вы поняли, что это будет длиться вечно, поэтому решили разойтись..."
+        return False, log, "⏳ Битва оказалась на равных, поэтому вы решили мирно разойтись..."
     elif player.hp <= 0:
         return False, log, "💀 Вы погибли!"
     else:
@@ -2017,7 +2061,7 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
         back_builder.button(
             text="🔙 К охоте", callback_data=MenuCB(action="hunt").pack())
         back_builder.button(
-            text="📊 Статистика боя",
+            text="📊 Статистика бойцов",
             callback_data=CombatStatsCB(action="show", enemy_data=cache_key).pack()
         )
         back_builder.adjust(1, 2)
@@ -2059,7 +2103,7 @@ async def show_combat_stats(query: CallbackQuery, callback_data: CombatStatsCB):
     # Можно сразу удалить из кэша, чтобы не занимать память
     enemy_cache.pop(key, None)
 
-    text = "📊 <b>Подробная статистика боя</b>\n\n"
+    text = "📊 <b>Подробная статистика бойцов</b>\n\n"
     text += "👤 <b>Ваши статы (с учётом экипировки):</b>\n"
     text += f"❤️ Здоровье: {player.hp:.1f}/{t_stats['max_hp']:.1f} (+{t_stats['hp_regen']:.2f}/мин)\n"
     text += f"✨ МагЩит: {t_stats['m_shield']:.1f}\n"
@@ -2404,7 +2448,7 @@ async def sell_mass_all(query: CallbackQuery, callback_data: SellMassCB):
     await save_player(player)
     sold_list = "\n".join(sold_items) if sold_items else "ничего"
     await safe_edit(query.message,
-                    f"💰 Продано:\n{sold_list}\n\nПолучено: {total} золота.\nТеперь у вас {player.gold} золота.",
+                    f"💰 Продано:\n{sold_list}\n\nПолучено: 💰 {total} золота.\nТеперь у вас 💰 {player.gold} золота.",
                     reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                         [InlineKeyboardButton(
                             text="🔙 В инвентарь", callback_data=MenuCB(action="inv").pack())]
