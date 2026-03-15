@@ -992,6 +992,8 @@ def generate_enemy(difficulty):
         "crit_damage": e_stats["crit_damage"],
         "lifesteal": e_stats["lifesteal"],
         "thorns": e_stats["thorns"],
+        "hp_regen": e_stats["hp_regen"],   # <--- Добавлено
+        "mp_regen": e_stats["mp_regen"],   # <--- Добавлено
         "magic_crit_chance": e_stats.get("magic_crit_chance", 0),
         "magic_crit_damage": e_stats.get("magic_crit_damage", 150),
         "magic_shield_drain": e_stats.get("magic_shield_drain", 0),
