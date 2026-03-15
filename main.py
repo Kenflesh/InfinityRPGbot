@@ -1942,7 +1942,7 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
             base_gold = 10 * player.current_difficulty
             actual_gold = int(base_gold * enemy['power_mult'] * t_stats["drop_chance"])
             player.gold += actual_gold
-            result_msg += f"\n\n💰 Найдено золота: {actual_gold}."
+            result_msg += f"\n\n💰 Найдено золота: {actual_gold}, теперь у вас {player.gold}"
 
             drop_chance_scaled = 0.2 * enemy['power_mult']
             if random.random() < drop_chance_scaled:
