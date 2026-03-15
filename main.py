@@ -1761,6 +1761,21 @@ def get_percent_bonuses(player):
                     percent[stat_name] = percent.get(stat_name, 0) + current_val
     return percent
 
+def get_stat_components(player, stat):
+    """Возвращает (base, flat_bonus, percent_bonus) для указанного стата."""
+    base = player.base_stats[stat]
+    flat = 0.0
+    percent = player.percent_bonus.get(stat, 0.0)
+    for slot, item in player.equip.items():
+        if item and stat in item["stats"]:
+            s_data = item["stats"][stat]
+            val = s_data['base'] * (s_data['upgrades'] + 1)
+            if s_data.get('bonus_type') == 'percent':
+                percent += val
+            else:
+                flat += val
+                return base, flat, percent
+
 def get_item_by_global_index(player, global_idx):
     """Возвращает (item, is_equip, slot_or_inv_idx) по глобальному индексу."""
     # Экипированные предметы
@@ -2585,7 +2600,6 @@ async def shop_rarity_input(message: Message, state: FSMContext):
 
 # ===================== ЛАВКА ЗЕЛИЙ =====================
 
-
 @dp.callback_query(MenuCB.filter(F.action == "potions"))
 async def menu_potions(query: CallbackQuery, callback_data: MenuCB):
     player = await get_player(query.from_user.id)
@@ -2607,16 +2621,32 @@ async def menu_potions(query: CallbackQuery, callback_data: MenuCB):
         stat = pot["stat"]
         base_val = pot["value"]
         pot_type = pot["type"]
-        
-        if stat == "adaptability":
-            display = base_val
-        else:
-            display = base_val * total_adapt
+
+        # Текущее финальное значение
+        current_val = t_stats[stat]
+
+        # Получаем компоненты для симуляции будущего значения
+        base, flat, percent = get_stat_components(player, stat)
 
         unit = '%' if pot_type == 'percent' else ''
+        if stat == "adaptability":
+            display = base_val
+            if pot_type == 'percent':
+                new_percent = percent + base_val
+                future_val = (base + flat) * (1 + new_percent / 100.0)
+            else:
+                new_base = base + base_val
+                future_val = (new_base + flat) * (1 + percent / 100.0)
+        else:
+            display = base_val * total_adapt
+            if pot_type == 'percent':
+                new_percent = percent + base_val * total_adapt
+                future_val = (base + flat) * (1 + new_percent / 100.0)
+            else:
+                new_base = base + base_val * total_adapt
+                future_val = (new_base + flat) * (1 + percent / 100.0)
 
-        # Формируем строку с базовым и фактическим значением
-        text += f"{idx}. {pot['name']} → +{fmt_float(display)}{unit} — 💰 {pot['price']}\n"
+        text += f"{idx}. {STAT_EMOJI.get(stat, '')} {STAT_RU[stat]} +{fmt_float(display)}{unit} ({fmt_float(current_val)} → {fmt_float(future_val)}) — 💰 {pot['price']}\n"
         b.button(text=f"{idx}", callback_data=PotionCB(action="buy", idx=i).pack())
         idx += 1
 
