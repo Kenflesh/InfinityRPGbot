@@ -360,7 +360,9 @@ CONFIG = {
         "thorns": 0.5,             # было 0.5 (теперь только у thorn)
         "magic_crit_chance": 0.5,   # было 1.0
         "magic_crit_damage": 150.0,
-        "magic_shield_drain": 0.2   # было 0.5
+        "magic_shield_drain": 0.2,   # было 0.5
+        "hp_regen": 5.0,      # базовая регенерация здоровья в минуту
+        "mp_regen": 5.0        # базовая регенерация маны в минуту
     },
     "enemy_stat_scale": {
         "hp": 12,                  # было 22
@@ -378,7 +380,9 @@ CONFIG = {
         "thorns": 0.25,            
         "magic_crit_chance": 0.3,  
         "magic_crit_damage": 1.0,  
-        "magic_shield_drain": 0.1
+        "magic_shield_drain": 0.1,
+        "hp_regen": 5.0,      # базовая регенерация здоровья в минуту
+        "mp_regen": 5.0        # базовая регенерация маны в минуту
     }
 }
 
@@ -916,7 +920,7 @@ def generate_enemy(difficulty):
 
     e_stats = {}
     for stat in ["hp", "atk", "def", "magic_atk", "magic_res", "accuracy", "evasion_rating",
-                 "crit_chance", "crit_damage", "lifesteal", "thorns",
+                 "crit_chance", "crit_damage", "lifesteal", "thorns", "hp_regen", "mp_regen",
                  "magic_crit_chance", "magic_crit_damage", "magic_shield_drain", "m_shield"]:
         base = CONFIG["enemy_base_stats"].get(stat, 0)
         scale = CONFIG["enemy_stat_scale"].get(stat, 0)
