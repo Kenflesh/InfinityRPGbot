@@ -57,16 +57,16 @@ STAT_EMOJI = {
     "crit_chance": "💥", "crit_damage": "💢", "accuracy": "🎯", "evasion_rating": "💨",
     "atk_spd": "⚡", "hp_regen": "💊", "mp_regen": "🔮",
     "drop_chance": "🍀", "lifesteal": "🩸", "armor_pen": "🪓",
-    "magic_atk": "🫧", "magic_res": "🌀", "thorns": "🌵",
+    "magic_atk": "🪄", "magic_res": "🌀", "thorns": "🌵",
     "adaptability": "🌟",
     "magic_crit_chance": "✨", "magic_crit_damage": "💫", "magic_shield_drain": "🔋"
 }
 
 ITEM_TYPE_RU = {
     "weapon1h_physical": "⚔️ Одноручное физ.",
-    "weapon1h_magical": "🫧 Одноручное маг.",
+    "weapon1h_magical": "🪄 Одноручное маг.",
     "weapon2h_physical": "⚔️ Двуручное физ.",
-    "weapon2h_magical": "🫧 Двуручное маг.",
+    "weapon2h_magical": "🪄 Двуручное маг.",
     "shield": "🛡 Щит",
     "tome": "📖 Фолиант",
     "tome2h": "📚 Тяжёлый фолиант",
@@ -2110,7 +2110,7 @@ async def show_combat_stats(query: CallbackQuery, callback_data: CombatStatsCB):
     text += f"❤️ Здоровье: {player.hp:.1f}/{t_stats['max_hp']:.1f} (+{t_stats['hp_regen']:.2f}/мин)\n"
     text += f"✨ МагЩит: {t_stats['m_shield']:.1f}\n"
     text += f"💧 Мана: {player.mp:.1f}/{t_stats['max_mp']:.1f} (+{t_stats['mp_regen']:.2f}/мин)\n"
-    text += f"🗡 Атака: {t_stats['atk']:.2f} | 🫧 Маг.Атака: {t_stats['magic_atk']:.2f}\n"
+    text += f"🗡 Атака: {t_stats['atk']:.2f} | 🪄 Маг.Атака: {t_stats['magic_atk']:.2f}\n"
     text += f"🛡 Защита: {t_stats['def']:.2f} | 💠 Маг.Сопр.: {t_stats['magic_res']:.2f}\n"
     text += f"💥 ШК: {t_stats['crit_chance']:.2f}% | 💢 КУ: {t_stats['crit_damage']:.2f}%\n"
     text += f"✨ МагШК: {t_stats['magic_crit_chance']:.2f}% | 💫 МагКУ: {t_stats['magic_crit_damage']:.2f}%\n"
@@ -2124,7 +2124,7 @@ async def show_combat_stats(query: CallbackQuery, callback_data: CombatStatsCB):
     text += f"Класс: {enemy.get('class', 'Неизвестно')}\n"
     text += f"❤️ Здоровье: {enemy['hp']:.1f}/{enemy['max_hp']:.1f}\n"
     text += f"✨ МагЩит: {enemy.get('m_shield', 0):.1f}\n"
-    text += f"🗡 Атака: {enemy['atk']:.2f} | 🫧 Маг.Атака: {enemy['magic_atk']:.2f}\n"
+    text += f"🗡 Атака: {enemy['atk']:.2f} | 🪄 Маг.Атака: {enemy['magic_atk']:.2f}\n"
     text += f"🛡 Защита: {enemy['def']:.2f} | 💠 Маг.Сопр.: {enemy['magic_res']:.2f}\n"
     text += f"🎯 Точность: {enemy['accuracy']:.2f} | 💨 Уклонение: {enemy['evasion_rating']:.2f}\n"
     text += f"💥 ШК: {enemy['crit_chance']:.1f}% | 💢 КУ: {enemy['crit_damage']:.1f}%\n"
