@@ -503,7 +503,6 @@ async def clear_enemy_cache(key: str, delay: int):
 
 # ===================== КЛАСС ИГРОКА =====================
 
-
 class Player:
     def __init__(self, uid, name):
         self.uid = str(uid)
@@ -566,8 +565,8 @@ class Player:
         self.training_stat = None
 
         self.max_unlocked_difficulty = 1
-        self.kills_per_difficulty = {}
         self.current_difficulty = 1
+        self.kills_on_max = 0
 
         self.last_regen_time = time.time()
     
@@ -589,6 +588,12 @@ class Player:
         # Миграция для старых сохранений
         if not hasattr(p, 'training_order') or p.training_order is None:
             p.training_order = [k for k in p.stat_upgrades.keys() if k not in ["hp", "mp"]]
+        # Миграция для убийств
+        if not hasattr(p, 'kills_on_max'):
+            if hasattr(p, 'kills_per_difficulty') and p.kills_per_difficulty:
+                p.kills_on_max = p.kills_per_difficulty.get(str(p.max_unlocked_difficulty), 0)
+            else:
+                p.kills_on_max = 0
         for stat in p.base_stats:
             if stat not in p.percent_bonus:
                 p.percent_bonus[stat] = 0.0
@@ -667,8 +672,8 @@ async def background_worker():
                         player.training_stat = None
                         try:
                             await bot.send_message(uid,
-                                f"🏋️‍♂️ Тренировка завершена! Характеристика <b>{STAT_RU.get(stat, stat)}</b> улучшена.",
-                                reply_markup=main_menu_kbd())
+                                f"🏋️‍♂️ Тренировка завершена!\n\nХарактеристика <b>{STAT_RU.get(stat, stat)}</b> улучшена.",
+                                reply_markup=training_complete_kbd(stat))
                         except:
                             pass
 
@@ -1521,6 +1526,15 @@ def cancel_kbd():
                    callback_data=ActionCB(action="cancel").pack())
     return builder.as_markup()
 
+def training_complete_kbd(stat: str):
+    """Клавиатура после завершения тренировки."""
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🏋️ Снова тренировать", callback_data=TrainCB(stat=stat).pack())
+    builder.button(text="📋 К списку тренировок", callback_data=MenuCB(action="train").pack())
+    builder.button(text="🔙 В главное меню", callback_data=MenuCB(action="profile").pack())
+    builder.adjust(1)  # кнопки в столбик (можно изменить на 2, если нужно)
+    return builder.as_markup()
 
 async def safe_edit(message: Message, text: str, reply_markup: InlineKeyboardMarkup = None):
     try:
@@ -1814,12 +1828,51 @@ async def menu_train(query: CallbackQuery, callback_data: MenuCB):
 async def process_train(query: CallbackQuery, callback_data: TrainCB):
     player = await get_player(query.from_user.id)
     stat = callback_data.stat
+
+    # Текущее финальное значение
+    t_stats = get_total_stats(player)
+    current_val = t_stats[stat]
+
+    # Расчёт прироста (аналогично menu_train)
+    base_inc = TRAINING_INCREMENTS.get(stat, 0.01)
+    if stat == 'adaptability':
+        increment = base_inc
+    else:
+        total_adapt = t_stats['adaptability']
+        increment = base_inc * total_adapt
+
+    # Сбор плоских и процентных бонусов от предметов и зелий для данного стата
+    flat_bonus = 0.0
+    percent_bonus = 0.0
+
+    # Предметы в экипировке
+    for slot, item in player.equip.items():
+        if item and stat in item["stats"]:
+            s_data = item["stats"][stat]
+            current_item_val = s_data['base'] * (s_data['upgrades'] + 1)
+            if s_data.get('bonus_type') == 'percent':
+                percent_bonus += current_item_val
+            else:
+                flat_bonus += current_item_val
+
+    # Процентные бонусы от зелий
+    percent_bonus += player.percent_bonus.get(stat, 0.0)
+
+    # Новое финальное значение после тренировки
+    new_base = player.base_stats[stat] + increment
+    new_val = (new_base + flat_bonus) * (1 + percent_bonus / 100.0)
+
+    # Устанавливаем состояние тренировки
     player.state = 'training'
     player.training_stat = stat
     player.state_end_time = time.time() + CONFIG["time_train"]
     await save_player(player)
+
+    # Отправляем сообщение с реальными значениями
     await safe_edit(query.message,
-                    f"Вы начали тренировку <b>{STAT_RU.get(stat, stat)}</b>",
+                    f"Вы начали тренировку стата <b>{STAT_RU.get(stat, stat)}</b>\n\n"
+                    f"Текущее значение: {fmt_float(current_val)}\n"
+                    f"После тренировки: {fmt_float(new_val)}",
                     reply_markup=waiting_kbd(player.state_end_time))
 
 
@@ -1829,10 +1882,9 @@ async def menu_hunt(query: CallbackQuery, callback_data: MenuCB):
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     b = InlineKeyboardBuilder()
 
-    kills_on_current = player.kills_per_difficulty.get(
-        str(player.current_difficulty), 0)
-    kills_needed = KILLS_TO_UNLOCK_NEXT - \
-        kills_on_current if player.current_difficulty == player.max_unlocked_difficulty else 0
+    kills_on_current = player.kills_on_max
+    kills_needed = KILLS_TO_UNLOCK_NEXT - kills_on_current if player.current_difficulty == player.max_unlocked_difficulty else 0
+    
     next_unlock_info = ""
     if player.current_difficulty == player.max_unlocked_difficulty and kills_needed > 0:
         next_unlock_info = f"\n⚔️ До следующей угрозы осталось убить: {kills_needed} врагов"
@@ -1887,10 +1939,6 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
         result_msg += f"\n❤️ Осталось здоровья: {player.hp:.1f}/{t_stats['max_hp']:.1f}, 💧 маны: {player.mp:.1f}/{t_stats['max_mp']:.1f}"
 
         if is_win:
-            diff_str = str(player.current_difficulty)
-            kills = player.kills_per_difficulty.get(diff_str, 0)
-            player.kills_per_difficulty[diff_str] = kills + 1
-
             base_gold = 10 * player.current_difficulty
             actual_gold = int(base_gold * enemy['power_mult'] * t_stats["drop_chance"])
             player.gold += actual_gold
@@ -1916,9 +1964,12 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
                 else:
                     result_msg += "\n\n📜 Инвентарь заклинаний полон!"
 
-            if player.current_difficulty == player.max_unlocked_difficulty and kills+1 >= KILLS_TO_UNLOCK_NEXT:
-                player.max_unlocked_difficulty += 1
-                result_msg += f"\n✨ Поздравляем! Открыта угроза уровня {player.max_unlocked_difficulty}!"
+            if player.current_difficulty == player.max_unlocked_difficulty:
+                player.kills_on_max += 1
+                if player.kills_on_max >= KILLS_TO_UNLOCK_NEXT:
+                    player.max_unlocked_difficulty += 1
+                    player.kills_on_max = 0
+                    result_msg += f"\n✨ Поздравляем! Открыта угроза уровня {player.max_unlocked_difficulty}!"
 
         elif "погибли" in result_msg:
             player.state = 'dead'
