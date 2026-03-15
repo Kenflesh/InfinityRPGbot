@@ -1123,8 +1123,6 @@ def simulate_combat_realtime(player, enemy):
         target_stats["hp"] = min(target_stats["max_hp"], target_stats["hp"] + target_stats["hp_regen"] / 60.0 * delta)
         target_stats["mp"] = min(target_stats["max_mp"], target_stats["mp"] + target_stats["mp_regen"] / 60.0 * delta)
 
-    prev_t = 0.0
-
     # Вспомогательная функция применения эффекта
     def apply_effect(effect, caster_stats, target_stats, is_player_caster, target_effects_list):
         nonlocal current_shield, enemy_shield, t
@@ -1308,7 +1306,7 @@ def simulate_combat_realtime(player, enemy):
         apply_regen(p_stats, delta)
         apply_regen(e_stats, delta)
 
-        # Проверка остановки времени
+        # Проверка остановки времени до обработки эффектов
         player_stopped = any(eff['type'] == 'time_stop' for eff in p_effects)
         enemy_stopped = any(eff['type'] == 'time_stop' for eff in e_effects)
 
@@ -1316,197 +1314,200 @@ def simulate_combat_realtime(player, enemy):
         process_effects(p_effects, p_stats, True)
         process_effects(e_effects, e_stats, False)
 
+        # Обновляем флаги остановки после обработки эффектов (они могли измениться)
+        player_stopped = any(eff['type'] == 'time_stop' for eff in p_effects)
+        enemy_stopped = any(eff['type'] == 'time_stop' for eff in e_effects)
+
         # Действие игрока
-        if abs(t - p_next_action) < 1e-9 and not player_stopped:
-            p_next_action = t + p_action_interval
-            spell_used = False
-            for i, spell in enumerate(player.active_spells):
-                if spell and not spell.get('is_passive', False):
-                    if spell_cooldowns[i] <= t and p_stats["mp"] >= spell["mp_cost"]:
-                        p_stats["mp"] -= spell["mp_cost"]
-                        cd = spell["base_cooldown"] / (1 + spell["upgrades"] * spell.get("cooldown_reduction_per_upgrade", 0.1))
-                        spell_cooldowns[i] = t + cd
-                        msg_lines = [f"[{fmt_float(t,6)}с] Вы использовали ✨ {spell['name']}:"]
-                        for eff in spell["effects"]:
-                            effect_msg = ""
-                            if eff["target"] == TARGET_ENEMY:
-                                effect_msg = apply_effect(eff, p_stats, e_stats, True, e_effects)
-                            else:
-                                effect_msg = apply_effect(eff, p_stats, p_stats, True, p_effects)
-                            if effect_msg:
-                                msg_lines.append(f"  • {effect_msg}")
-                        log.append("\n".join(msg_lines))
-                        spell_used = True
-                        break
-            if not spell_used:
-                can_phys = has_phys_weapon or (not has_phys_weapon and has_free_hand)
-                can_magic = has_magic_weapon
-                if can_phys or can_magic:
-                    phys_dmg = 0.0
-                    magic_dmg = 0.0
-                    crit_flag = ""
-                    magic_crit_flag = ""
-                    missed = False
-
-                    if can_phys:
-                        effective_def = max(0, e_stats["def"] - p_stats["armor_pen"])
-                        base_phys = p_stats["atk"] * p_stats["atk"] / (p_stats["atk"] + effective_def) if p_stats["atk"] + effective_def > 0 else 0
-                        phys_dmg = base_phys * random.uniform(0.8, 1.2)
-                    if can_magic:
-                        effective_mres = max(0, e_stats["magic_res"])
-                        base_magic = p_stats["magic_atk"] * p_stats["magic_atk"] / (p_stats["magic_atk"] + effective_mres) if p_stats["magic_atk"] + effective_mres > 0 else 0
-                        magic_dmg = base_magic * random.uniform(0.8, 1.2)
-
-                    hit = random.random() * 100 > get_evasion_chance(p_stats["accuracy"], e_stats["evasion_rating"])
-                    if hit:
-                        if can_phys:
-                            if random.random() * 100 < p_stats["crit_chance"]:
-                                phys_dmg *= p_stats["crit_damage"] / 100.0
-                                crit_flag = " 💥 КРИТ!"
-                    else:
+        if abs(t - p_next_action) < 1e-9:
+            if not player_stopped:
+                p_next_action = t + p_action_interval
+                spell_used = False
+                for i, spell in enumerate(player.active_spells):
+                    if spell and not spell.get('is_passive', False):
+                        if spell_cooldowns[i] <= t and p_stats["mp"] >= spell["mp_cost"]:
+                            p_stats["mp"] -= spell["mp_cost"]
+                            cd = spell["base_cooldown"] / (1 + spell["upgrades"] * spell.get("cooldown_reduction_per_upgrade", 0.1))
+                            spell_cooldowns[i] = t + cd
+                            msg_lines = [f"[{fmt_float(t,6)}с] Вы использовали ✨ {spell['name']}:"]
+                            for eff in spell["effects"]:
+                                effect_msg = ""
+                                if eff["target"] == TARGET_ENEMY:
+                                    effect_msg = apply_effect(eff, p_stats, e_stats, True, e_effects)
+                                else:
+                                    effect_msg = apply_effect(eff, p_stats, p_stats, True, p_effects)
+                                if effect_msg:
+                                    msg_lines.append(f"  • {effect_msg}")
+                            log.append("\n".join(msg_lines))
+                            spell_used = True
+                            break
+                if not spell_used:
+                    can_phys = has_phys_weapon or (not has_phys_weapon and has_free_hand)
+                    can_magic = has_magic_weapon
+                    if can_phys or can_magic:
                         phys_dmg = 0.0
-                        missed = True
+                        magic_dmg = 0.0
+                        crit_flag = ""
+                        magic_crit_flag = ""
+                        missed = False
 
-                    if can_magic:
-                        if random.random() * 100 < p_stats["magic_crit_chance"]:
-                            magic_dmg *= p_stats["magic_crit_damage"] / 100.0
-                            magic_crit_flag = " 💫 КРИТ!"
+                        if can_phys:
+                            effective_def = max(0, e_stats["def"] - p_stats["armor_pen"])
+                            base_phys = p_stats["atk"] * p_stats["atk"] / (p_stats["atk"] + effective_def) if p_stats["atk"] + effective_def > 0 else 0
+                            phys_dmg = base_phys * random.uniform(0.8, 1.2)
+                        if can_magic:
+                            effective_mres = max(0, e_stats["magic_res"])
+                            base_magic = p_stats["magic_atk"] * p_stats["magic_atk"] / (p_stats["magic_atk"] + effective_mres) if p_stats["magic_atk"] + effective_mres > 0 else 0
+                            magic_dmg = base_magic * random.uniform(0.8, 1.2)
 
-                    total_dmg = phys_dmg + magic_dmg
-
-                    if total_dmg > 0:
-                        remaining_dmg = total_dmg
-                        absorbed = 0.0
-                        if enemy_shield > 0:
-                            absorbed = min(remaining_dmg, enemy_shield)
-                            enemy_shield -= absorbed
-                            remaining_dmg -= absorbed
-
-                        if remaining_dmg > 0:
-                            e_stats["hp"] -= remaining_dmg
-                            msg = f"[{fmt_float(t,6)}с] 🗡{crit_flag}{magic_crit_flag} Вы атаковали, {remaining_dmg:.1f} урона"
+                        hit = random.random() * 100 > get_evasion_chance(p_stats["accuracy"], e_stats["evasion_rating"])
+                        if hit:
+                            if can_phys:
+                                if random.random() * 100 < p_stats["crit_chance"]:
+                                    phys_dmg *= p_stats["crit_damage"] / 100.0
+                                    crit_flag = " 💥 КРИТ!"
                         else:
-                            msg = f"[{fmt_float(t,6)}с] 🗡{crit_flag}{magic_crit_flag} Вы атаковали, весь урон поглощён щитом"
+                            phys_dmg = 0.0
+                            missed = True
 
+                        if can_magic:
+                            if random.random() * 100 < p_stats["magic_crit_chance"]:
+                                magic_dmg *= p_stats["magic_crit_damage"] / 100.0
+                                magic_crit_flag = " 💫 КРИТ!"
+
+                        total_dmg = phys_dmg + magic_dmg
+
+                        if total_dmg > 0:
+                            remaining_dmg = total_dmg
+                            absorbed = 0.0
+                            if enemy_shield > 0:
+                                absorbed = min(remaining_dmg, enemy_shield)
+                                enemy_shield -= absorbed
+                                remaining_dmg -= absorbed
+
+                            if remaining_dmg > 0:
+                                e_stats["hp"] -= remaining_dmg
+                                msg = f"[{fmt_float(t,6)}с] 🗡{crit_flag}{magic_crit_flag} Вы атаковали, {remaining_dmg:.1f} урона"
+                            else:
+                                msg = f"[{fmt_float(t,6)}с] 🗡{crit_flag}{magic_crit_flag} Вы атаковали, весь урон поглощён щитом"
+
+                            if absorbed > 0:
+                                msg += f" (поглощено {absorbed:.1f})"
+
+                            if phys_dmg > 0 and p_stats["lifesteal"] > 0:
+                                ls = phys_dmg * (p_stats["lifesteal"] / 100.0)
+                                p_stats["hp"] = min(p_stats["max_hp"], p_stats["hp"] + ls)
+                                msg += f" 🩸 +{fmt_float(ls,4)} HP"
+                            if phys_dmg > 0 and e_stats["thorns"] > 0:
+                                th = phys_dmg * (e_stats["thorns"] / 100.0)
+                                if current_shield > 0:
+                                    absorbed_th = min(th, current_shield)
+                                    current_shield -= absorbed_th
+                                    th -= absorbed_th
+                                if th > 0:
+                                    p_stats["hp"] -= th
+                                    msg += f" 🌵 -{fmt_float(th, 4)} HP"
+                            if magic_dmg > 0 and p_stats["magic_shield_drain"] > 0:
+                                drain = magic_dmg * (p_stats["magic_shield_drain"] / 100.0)
+                                current_shield = min(current_shield + drain, p_stats["max_hp"] * 0.5)
+                                msg += f" 🔋 +{fmt_float(drain, 4)} щита"
+
+                            # Добавляем состояние врага (цели)
+                            msg += f" {status_str(e_stats, enemy_shield, False)}"
+                            log.append(msg)
+                        else:
+                            if missed and can_phys and not can_magic:
+                                msg = f"[{fmt_float(t,6)}с] 🗡{magic_crit_flag} Вы промахнулись"
+                            elif missed and can_phys and can_magic and magic_dmg == 0:
+                                msg = f"[{fmt_float(t,6)}с] 🗡{magic_crit_flag} Вы промахнулись"
+                            else:
+                                msg = f"[{fmt_float(t,6)}с] 🗡{crit_flag}{magic_crit_flag} Вы атаковали, но не пробили защиту"
+                            log.append(msg)
+            else:
+                # Игрок остановлен – пропускаем действие, но сдвигаем время следующего действия
+                p_next_action += p_action_interval
+
+        # Действие врага
+        if abs(t - e_next_action) < 1e-9:
+            if not enemy_stopped and e_stats["hp"] > 0:
+                e_next_action = t + e_action_interval
+                spell_used = False
+                if enemy_spells:
+                    available = [i for i, cd in enumerate(enemy_cooldowns) if cd <= t]
+                    random.shuffle(available)
+                    for idx in available:
+                        spell = enemy_spells[idx]
+                        if e_stats.get("mp", 0) >= spell["mp_cost"]:
+                            e_stats["mp"] -= spell["mp_cost"]
+                            cd = spell["base_cooldown"] / (1 + spell["upgrades"] * 0.1)
+                            enemy_cooldowns[idx] = t + cd
+                            msg = f"[{fmt_float(t,6)}с] Враг использует заклинание ✨ {spell['name']}: "
+                            for eff in spell["effects"]:
+                                if eff["target"] == TARGET_ENEMY:
+                                    msg += apply_effect(eff, e_stats, p_stats, False, p_effects)
+                                else:
+                                    msg += apply_effect(eff, e_stats, e_stats, False, e_effects)
+                            log.append(msg)
+                            spell_used = True
+                            break
+
+                if not spell_used:
+                    if enemy.get('atk_type') == 'Magic':
+                        base_dmg = e_stats["magic_atk"] * e_stats["magic_atk"] / (e_stats["magic_atk"] + p_stats["magic_res"]) if e_stats["magic_atk"] + p_stats["magic_res"] > 0 else 0
+                        dmg = base_dmg * random.uniform(0.8, 1.2)
+                        crit_chance = e_stats.get("magic_crit_chance", 0)
+                        crit_damage = e_stats.get("magic_crit_damage", 150)
+                        crit_flag = " 💫 КРИТ!"
+                    else:
+                        base_dmg = e_stats["atk"] * e_stats["atk"] / (e_stats["atk"] + p_stats["def"]) if e_stats["atk"] + p_stats["def"] > 0 else 0
+                        dmg = base_dmg * random.uniform(0.8, 1.2)
+                        crit_chance = e_stats["crit_chance"]
+                        crit_damage = e_stats["crit_damage"]
+                        crit_flag = " 💥 КРИТ!"
+
+                    if random.random() * 100 > get_evasion_chance(e_stats["accuracy"], p_stats["evasion_rating"]):
+                        if random.random() * 100 < crit_chance:
+                            dmg *= crit_damage / 100.0
+                        else:
+                            crit_flag = ""
+
+                        absorbed = 0.0
+                        if current_shield > 0:
+                            absorbed = min(dmg, current_shield)
+                            current_shield -= absorbed
+                            dmg -= absorbed
+
+                        if dmg > 0:
+                            p_stats["hp"] -= dmg
+                            msg = f"[{fmt_float(t,6)}с] 😡 Враг нанёс вам{crit_flag} {dmg:.1f} урона"
+                        else:
+                            msg = f"[{fmt_float(t,6)}с] 😡 Враг атаковал, но весь урон был поглощён щитом"
                         if absorbed > 0:
                             msg += f" (поглощено {absorbed:.1f})"
 
-                        if phys_dmg > 0 and p_stats["lifesteal"] > 0:
-                            ls = phys_dmg * (p_stats["lifesteal"] / 100.0)
-                            p_stats["hp"] = min(p_stats["max_hp"], p_stats["hp"] + ls)
-                            msg += f" 🩸 +{fmt_float(ls,4)} HP"
-                        if phys_dmg > 0 and e_stats["thorns"] > 0:
-                            th = phys_dmg * (e_stats["thorns"] / 100.0)
-                            if current_shield > 0:
-                                absorbed_th = min(th, current_shield)
-                                current_shield -= absorbed_th
+                        if dmg > 0 and e_stats["lifesteal"] > 0:
+                            heal = dmg * (e_stats["lifesteal"] / 100.0)
+                            if heal > 0:
+                                e_stats["hp"] = min(e_stats["max_hp"], e_stats["hp"] + heal)
+                                msg += f" 🩸 +{fmt_float(heal, 4)} HP"
+
+                        msg += f" {status_str(p_stats, current_shield, True)}"
+                        log.append(msg)
+
+                        if p_stats["thorns"] > 0 and dmg > 0:
+                            th = dmg * (p_stats["thorns"] / 100.0)
+                            if enemy_shield > 0:
+                                absorbed_th = min(th, enemy_shield)
+                                enemy_shield -= absorbed_th
                                 th -= absorbed_th
                             if th > 0:
-                                p_stats["hp"] -= th
-                                msg += f" 🌵 -{fmt_float(th, 4)} HP"
-                        if magic_dmg > 0 and p_stats["magic_shield_drain"] > 0:
-                            drain = magic_dmg * (p_stats["magic_shield_drain"] / 100.0)
-                            current_shield = min(current_shield + drain, p_stats["max_hp"] * 0.5)
-                            msg += f" 🔋 +{fmt_float(drain, 4)} щита"
-
-                        # Добавляем состояние врага (цели)
-                        msg += f" {status_str(e_stats, enemy_shield, False)}"
-                        log.append(msg)
+                                e_stats["hp"] -= th
+                                log.append(f"[{fmt_float(t,6)}с] 🌵 Ваши шипы нанесли врагу {fmt_float(th, 4)} урона {status_str(e_stats, enemy_shield, False)}")
                     else:
-                        if missed and can_phys and not can_magic:
-                            msg = f"[{fmt_float(t,6)}с] 🗡{magic_crit_flag} Вы промахнулись"
-                        elif missed and can_phys and can_magic and magic_dmg == 0:
-                            msg = f"[{fmt_float(t,6)}с] 🗡{magic_crit_flag} Вы промахнулись"
-                        else:
-                            msg = f"[{fmt_float(t,6)}с] 🗡{crit_flag}{magic_crit_flag} Вы атаковали, но не пробили защиту"
-                        log.append(msg)
-
-        # Действие врага
-        if abs(t - e_next_action) < 1e-9 and not enemy_stopped and e_stats["hp"] > 0:
-            e_next_action = t + e_action_interval
-            spell_used = False
-            # Попытка использовать заклинание (остаётся без изменений)
-            if enemy_spells:
-                available = [i for i, cd in enumerate(enemy_cooldowns) if cd <= t]
-                random.shuffle(available)
-                for idx in available:
-                    spell = enemy_spells[idx]
-                    if e_stats.get("mp", 0) >= spell["mp_cost"]:
-                        e_stats["mp"] -= spell["mp_cost"]
-                        cd = spell["base_cooldown"] / (1 + spell["upgrades"] * 0.1)
-                        enemy_cooldowns[idx] = t + cd
-                        msg = f"[{fmt_float(t,6)}с] Враг использует заклинание ✨ {spell['name']}: "
-                        for eff in spell["effects"]:
-                            if eff["target"] == TARGET_ENEMY:
-                                msg += apply_effect(eff, e_stats, p_stats, False, p_effects)
-                            else:
-                                msg += apply_effect(eff, e_stats, e_stats, False, e_effects)
-                        log.append(msg)
-                        spell_used = True
-                        break
-
-            if not spell_used:
-                # Определяем тип атаки врага
-                if enemy.get('atk_type') == 'Magic':
-                    # Магическая атака
-                    base_dmg = e_stats["magic_atk"] * e_stats["magic_atk"] / (e_stats["magic_atk"] + p_stats["magic_res"]) if e_stats["magic_atk"] + p_stats["magic_res"] > 0 else 0
-                    dmg = base_dmg * random.uniform(0.8, 1.2)
-                    crit_chance = e_stats.get("magic_crit_chance", 0)
-                    crit_damage = e_stats.get("magic_crit_damage", 150)
-                    crit_flag = " 💫 КРИТ!"
-                else:
-                    # Физическая атака
-                    base_dmg = e_stats["atk"] * e_stats["atk"] / (e_stats["atk"] + p_stats["def"]) if e_stats["atk"] + p_stats["def"] > 0 else 0
-                    dmg = base_dmg * random.uniform(0.8, 1.2)
-                    crit_chance = e_stats["crit_chance"]
-                    crit_damage = e_stats["crit_damage"]
-                    crit_flag = " 💥 КРИТ!"
-
-                # Проверка попадания
-                if random.random() * 100 > get_evasion_chance(e_stats["accuracy"], p_stats["evasion_rating"]):
-                    if random.random() * 100 < crit_chance:
-                        dmg *= crit_damage / 100.0
-                    else:
-                        crit_flag = ""
-
-                    # Поглощение щитом
-                    absorbed = 0.0
-                    if current_shield > 0:
-                        absorbed = min(dmg, current_shield)
-                        current_shield -= absorbed
-                        dmg -= absorbed
-
-                    if dmg > 0:
-                        p_stats["hp"] -= dmg
-                        msg = f"[{fmt_float(t,6)}с] 😡 Враг нанёс вам{crit_flag} {dmg:.1f} урона"
-                    else:
-                        msg = f"[{fmt_float(t,6)}с] 😡 Враг атаковал, но весь урон был поглощён щитом"
-                    if absorbed > 0:
-                        msg += f" (поглощено {absorbed:.1f})"
-
-                    # Вампиризм врага
-                    if dmg > 0 and e_stats["lifesteal"] > 0:
-                        heal = dmg * (e_stats["lifesteal"] / 100.0)
-                        if heal > 0:
-                            e_stats["hp"] = min(e_stats["max_hp"], e_stats["hp"] + heal)
-                            msg += f" 🩸 +{fmt_float(heal, 4)} HP"
-
-                    # Добавляем состояние игрока (цели)
-                    msg += f" {status_str(p_stats, current_shield, True)}"
-                    log.append(msg)
-
-                    # Шипы игрока (отражают урон)
-                    if p_stats["thorns"] > 0 and dmg > 0:
-                        th = dmg * (p_stats["thorns"] / 100.0)
-                        if enemy_shield > 0:
-                            absorbed_th = min(th, enemy_shield)
-                            enemy_shield -= absorbed_th
-                            th -= absorbed_th
-                        if th > 0:
-                            e_stats["hp"] -= th
-                            log.append(f"[{fmt_float(t,6)}с] 🌵 Ваши шипы нанесли врагу {fmt_float(th, 4)} урона {status_str(e_stats, enemy_shield, False)}")
-                else:
-                    log.append(f"[{fmt_float(t,6)}с] 🌀 Вы уклонились")
+                        log.append(f"[{fmt_float(t,6)}с] 🌀 Вы уклонились")
+            else:
+                # Враг остановлен или мёртв – пропускаем действие, но сдвигаем время следующего действия
+                e_next_action += e_action_interval
 
         if p_stats["hp"] <= 0 or e_stats["hp"] <= 0:
             break
