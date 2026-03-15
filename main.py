@@ -26,6 +26,11 @@ DATA_DIR = 'data'
 os.makedirs(DATA_DIR, exist_ok=True)
 DB_FILE = os.path.join(DATA_DIR, 'database.json')
 
+def fmt_float(num, max_precision=3):
+    # Форматирует число, убирая лишние нули в конце
+    s = f"{num:.{max_precision}f}".rstrip('0').rstrip('.')
+    return s
+
 db_lock = asyncio.Lock()
 db = {}
 enemy_cache = {}
@@ -467,12 +472,6 @@ class SpellCB(CallbackData, prefix="spell"):
     # индекс в spell_inventory или в active_spells (для unequip)
     idx: int = 0
     slot: int = -1        # слот для экипировки (0-4) или -1
-
-
-def fmt_float(num, max_precision=3):
-    # Форматирует число, убирая лишние нули в конце
-    s = f"{num:.{max_precision}f}".rstrip('0').rstrip('.')
-    return s
 
 # ===================== БАЗА ДАННЫХ =====================
 
@@ -1084,7 +1083,7 @@ def simulate_combat_realtime(player, enemy):
 
     log = [
         f"⚔️ <b>Бой начался!</b>\nУгроза: {enemy['difficulty']}",
-        f"👤 <b>Вы:</b> ❤️ {p_stats['hp']:.1f}/{p_stats['max_hp']:.1f} | ✨ {p_stats['m_shield']} | 💧 {p_stats['mp']:.1f}/{p_stats['max_mp']:.1f}",
+        f"👤 <b>Вы:</b> ❤️ {p_stats['hp']:.1f}/{p_stats['max_hp']:.1f} | ✨ {p_stats['m_shield']:.1f} | 💧 {p_stats['mp']:.1f}/{p_stats['max_mp']:.1f}",
         f"😡 <b>[{enemy.get('class', '')}] {enemy['name']}</b>: ❤️ {enemy['hp']:.1f}/{enemy['max_hp']:.1f}",
         f"🎯 Ваш уклон {get_evasion_chance(e_stats['accuracy'], p_stats['evasion_rating']):.1f}% | Уклон врага: {get_evasion_chance(p_stats['accuracy'], e_stats['evasion_rating']):.1f}%\n",
     ]
@@ -1142,7 +1141,7 @@ def simulate_combat_realtime(player, enemy):
                         current_shield = min(current_shield + shield_gain, p_stats["max_hp"]*0.5)
                     else:
                         enemy_shield = min(enemy_shield + shield_gain, e_stats["max_hp"]*0.5)
-                    msg += f"🔋 +{shield_gain:.1f} щита "
+                    msg += f"🔋 +{fmt_float(shield_gain, 4)} щита "
 
                 if target_stats is e_stats:
                     msg += f"🔥 Вы нанесли {dmg:.1f} урона"
@@ -1163,11 +1162,11 @@ def simulate_combat_realtime(player, enemy):
         elif eff_type in ["heal", "mp_restore"]:
             if eff_type == "heal":
                 target_stats["hp"] = min(target_stats["max_hp"], target_stats["hp"] + base)
-                msg += f"💚 +{base} HP"
+                msg += f"💚 +{base:.1f} HP"
             else:
                 if "max_mp" in target_stats:
                     target_stats["mp"] = min(target_stats["max_mp"], target_stats["mp"] + base)
-                    msg += f"💧 +{base} MP"
+                    msg += f"💧 +{base:.1f} MP"
 
         elif eff_type in ["dot", "hot"]:
             effect_copy = effect.copy()
@@ -1188,10 +1187,10 @@ def simulate_combat_realtime(player, enemy):
         elif eff_type == "shield":
             if is_player_caster:
                 current_shield = min(current_shield + base, p_stats["max_hp"]*0.5)
-                msg += f"✨ Вы получили +{base} щита"
+                msg += f"✨ Вы получили +{base:.1f} щита"
             else:
                 enemy_shield = min(enemy_shield + base, e_stats["max_hp"]*0.5)
-                msg += f"✨ Враг получил +{base} щита"
+                msg += f"✨ Враг получил +{base:.1f} щита"
 
         return msg
 
@@ -1212,7 +1211,7 @@ def simulate_combat_realtime(player, enemy):
                                 remaining_dmg -= absorbed
                             if remaining_dmg > 0:
                                 target_stats["hp"] -= remaining_dmg
-                            log.append(f"[{fmt_float(t,6)}с] 🌡 Вы получили {dmg:.1f} урона от горения")
+                            log.append(f"[{fmt_float(t,6)}с] 🌡 Вы получили {fmt_float(dmg, 4)} урона от горения")
                         else:
                             if enemy_shield > 0:
                                 absorbed = min(remaining_dmg, enemy_shield)
@@ -1220,7 +1219,7 @@ def simulate_combat_realtime(player, enemy):
                                 remaining_dmg -= absorbed
                             if remaining_dmg > 0:
                                 target_stats["hp"] -= remaining_dmg
-                            log.append(f"[{fmt_float(t,6)}с] 🌡 Враг получил {dmg:.1f} урона от горения")
+                            log.append(f"[{fmt_float(t,6)}с] 🌡 Враг получил {fmt_float(dmg, 4)} урона от горения")
                     elif eff_type == "hot":
                         heal = eff["base_value"]
                         target_stats["hp"] = min(target_stats["max_hp"], target_stats["hp"] + heal)
@@ -1294,7 +1293,7 @@ def simulate_combat_realtime(player, enemy):
                         p_stats["mp"] -= spell["mp_cost"]
                         cd = spell["base_cooldown"] / (1 + spell["upgrades"] * spell.get("cooldown_reduction_per_upgrade", 0.1))
                         spell_cooldowns[i] = t + cd
-                        msg_lines = [f"[{fmt_float(t,6)}с] ✨ {spell['name']}:"]
+                        msg_lines = [f"[{fmt_float(t,6)}с] Вы использовали ✨ {spell['name']}:"]
                         for eff in spell["effects"]:
                             effect_msg = ""
                             if eff["target"] == TARGET_ENEMY:
@@ -1352,9 +1351,9 @@ def simulate_combat_realtime(player, enemy):
 
                         if remaining_dmg > 0:
                             e_stats["hp"] -= remaining_dmg
-                            msg = f"[{fmt_float(t,6)}с] 🗡{crit_flag}{magic_crit_flag} Вы атаковали и нанесли {remaining_dmg:.1f} урона"
+                            msg = f"[{fmt_float(t,6)}с] 🗡{crit_flag}{magic_crit_flag} Вы атаковали, {remaining_dmg:.1f} урона"
                         else:
-                            msg = f"[{fmt_float(t,6)}с] 🗡{crit_flag}{magic_crit_flag} Вы атаковали, но весь урон был поглощён щитом"
+                            msg = f"[{fmt_float(t,6)}с] 🗡{crit_flag}{magic_crit_flag} Вы атаковали, весь урон поглощён щитом"
 
                         if absorbed > 0:
                             msg += f" (поглощено {absorbed:.1f})"
@@ -1371,18 +1370,18 @@ def simulate_combat_realtime(player, enemy):
                                 th -= absorbed_th
                             if th > 0:
                                 p_stats["hp"] -= th
-                                msg += f" 🌵 -{fmt_float(th,4)} HP"
+                                msg += f" 🌵 -{fmt_float(th, 4)} HP"
                         if magic_dmg > 0 and p_stats["magic_shield_drain"] > 0:
                             drain = magic_dmg * (p_stats["magic_shield_drain"] / 100.0)
                             current_shield = min(current_shield + drain, p_stats["max_hp"] * 0.5)
-                            msg += f" 🔋 +{fmt_float(drain,4)} щита"
+                            msg += f" 🔋 +{fmt_float(drain, 4)} щита"
                     else:
                         if missed and can_phys and not can_magic:
                             msg = f"[{fmt_float(t,6)}с] 🗡{magic_crit_flag} Вы промахнулись"
                         elif missed and can_phys and can_magic and magic_dmg == 0:
                             msg = f"[{fmt_float(t,6)}с] 🗡{magic_crit_flag} Вы промахнулись"
                         else:
-                            msg = f"[{fmt_float(t,6)}с] 🗡{crit_flag}{magic_crit_flag} Вы атаковали, но не смогли пробить защиту"
+                            msg = f"[{fmt_float(t,6)}с] 🗡{crit_flag}{magic_crit_flag} Вы атаковали, не смогли пробить защиту"
 
                     log.append(msg)
 
@@ -1399,7 +1398,7 @@ def simulate_combat_realtime(player, enemy):
                         e_stats["mp"] -= spell["mp_cost"]
                         cd = spell["base_cooldown"] / (1 + spell["upgrades"] * 0.1)
                         enemy_cooldowns[idx] = t + cd
-                        msg = f"[{fmt_float(t,6)}с] Враг использует заклинание:✨ {spell['name']}: "
+                        msg = f"[{fmt_float(t,6)}с] Враг использует заклинание ✨ {spell['name']}: "
                         for eff in spell["effects"]:
                             if eff["target"] == TARGET_ENEMY:
                                 msg += apply_effect(eff, e_stats, p_stats, False, p_effects)
@@ -1433,7 +1432,7 @@ def simulate_combat_realtime(player, enemy):
                         heal = dmg * (e_stats["lifesteal"] / 100.0)
                         if heal > 0:
                             e_stats["hp"] = min(e_stats["max_hp"], e_stats["hp"] + heal)
-                            msg += f" 🩸 +{heal:.1f} HP"
+                            msg += f" 🩸 +{fmt_float(heal, 4)} HP"
 
                     log.append(msg)
 
@@ -1445,7 +1444,7 @@ def simulate_combat_realtime(player, enemy):
                             th -= absorbed_th
                         if th > 0:
                             e_stats["hp"] -= th
-                            log.append(f"[{fmt_float(t,6)}с] 🌵 Ваши шипы нанесли врагу {th:.1f} урона")
+                            log.append(f"[{fmt_float(t,6)}с] 🌵 Ваши шипы нанесли врагу {fmt_float(th, 4)} урона")
                 else:
                     log.append(f"[{fmt_float(t,6)}с] 🌀 Вы уклонились")
 
@@ -1743,33 +1742,51 @@ async def menu_profile(query: CallbackQuery, callback_data: MenuCB):
     await safe_edit(query.message, text, reply_markup=main_menu_kbd())
 
 
+def get_percent_bonuses(player):
+    """Возвращает словарь суммарных процентных бонусов от экипировки и зелий."""
+    percent = player.percent_bonus.copy()
+    for slot, item in player.equip.items():
+        if item:
+            for stat_name, stat_data in item["stats"].items():
+                if stat_data.get('bonus_type') == 'percent':
+                    current_val = stat_data['base'] * (stat_data['upgrades'] + 1)
+                    percent[stat_name] = percent.get(stat_name, 0) + current_val
+    return percent
+
 @dp.callback_query(MenuCB.filter(F.action == "train"))
 async def menu_train(query: CallbackQuery, callback_data: MenuCB):
     player = await get_player(query.from_user.id)
     page = callback_data.page
     stats = [s for s in player.stat_upgrades.keys() if s not in ["hp", "mp"]]
 
-    per_page = 6
+    per_page = 9
     start = page * per_page
     end = start + per_page
 
-    text = f"💰 Золото: {player.gold}\n🏋️ <b>Тренировка (10 секунд)</b>\nВыберите характеристику:\n\n"
+    # Получаем текущую адаптивность и процентные бонусы
+    t_stats = get_total_stats(player)
+    total_adapt = t_stats['adaptability']
+    percent_bonuses = get_percent_bonuses(player)
+
+    text = f"💰 Золото: {player.gold}\n🏋️ <b>Тренировка</b>\nВыберите характеристику:\n\n"
 
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     builder = InlineKeyboardBuilder()
 
     for i, stat in enumerate(stats[start:end], start=1):
-        upgrades = player.stat_upgrades[stat]
         stat_name = f"{STAT_EMOJI.get(stat, '')} {STAT_RU.get(stat, stat)}"
         base_inc = TRAINING_INCREMENTS.get(stat, 0.01)
-        t_stats = get_total_stats(player)
-        total_adapt = t_stats['adaptability']
+
         if stat == 'adaptability':
             increment = base_inc
         else:
             increment = base_inc * total_adapt
-        text += f"{i}. <b>{stat_name}</b> (+{fmt_float(increment)})\n"
-        builder.button(text=f"{i}", callback_data=TrainCB(stat=stat).pack())
+
+        # Реальный прирост к итоговому стану с учётом процентных бонусов
+        real_gain = increment * (1 + percent_bonuses.get(stat, 0) / 100.0)
+
+        text += f"{i}. <b>{stat_name}</b> +{fmt_float(increment)} ({fmt_float(real_gain)})\n"
+        builder.button(text=f"{i} {STAT_EMOJI.get(stat, '')}", callback_data=TrainCB(stat=stat).pack())
 
     builder.adjust(3)
 
@@ -1798,7 +1815,7 @@ async def process_train(query: CallbackQuery, callback_data: TrainCB):
     player.state_end_time = time.time() + CONFIG["time_train"]
     await save_player(player)
     await safe_edit(query.message,
-                    f"Вы начали тренировку <b>{STAT_RU.get(stat, stat)}</b>. Вернитесь через 10 секунд.",
+                    f"Вы начали тренировку <b>{STAT_RU.get(stat, stat)}</b>",
                     reply_markup=waiting_kbd(player.state_end_time))
 
 
@@ -1873,7 +1890,7 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
             base_gold = 10 * player.current_difficulty
             actual_gold = int(base_gold * enemy['power_mult'] * t_stats["drop_chance"])
             player.gold += actual_gold
-            result_msg += f"\n💰 Найдено золота: {actual_gold}."
+            result_msg += f"\n\n💰 Найдено золота: {actual_gold}."
 
             drop_chance_scaled = 0.2 * enemy['power_mult']
             if random.random() < drop_chance_scaled:
@@ -1891,9 +1908,9 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
                 dropped = random.choice(enemy['spells']).copy()
                 if len(player.spell_inventory) < 20:
                     player.spell_inventory.append(dropped)
-                    result_msg += f"\n📜 Вы получили заклинание: {dropped['name']}"
+                    result_msg += f"\n\n📜 Вы получили заклинание: {dropped['name']}"
                 else:
-                    result_msg += "\n📜 Инвентарь заклинаний полон!"
+                    result_msg += "\n\n📜 Инвентарь заклинаний полон!"
 
             if player.current_difficulty == player.max_unlocked_difficulty and kills+1 >= KILLS_TO_UNLOCK_NEXT:
                 player.max_unlocked_difficulty += 1
@@ -2524,17 +2541,14 @@ async def menu_potions(query: CallbackQuery, callback_data: MenuCB):
         stat = pot["stat"]
         base_val = pot["value"]
         pot_type = pot["type"]
-        # Вычисляем фактический прирост
+        
         if stat == "adaptability":
             display = base_val
-            unit = '%' if pot_type == 'percent' else ''
         else:
-            if pot_type == "percent":
-                display = base_val * total_adapt
-                unit = '%'
-            else:
-                display = base_val * total_adapt
-                unit = ''
+            display = base_val * total_adapt
+
+        unit = '%' if pot_type == 'percent' else ''
+
         # Формируем строку с базовым и фактическим значением
         text += f"{idx}. {pot['name']} → +{fmt_float(display)}{unit} — 💰 {pot['price']}\n"
         b.button(text=f"{idx}", callback_data=PotionCB(action="buy", idx=i).pack())
