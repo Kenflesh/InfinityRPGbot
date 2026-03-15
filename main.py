@@ -1983,22 +1983,22 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
                 "\n\n..... [БОЙ ДОЛГИЙ, ПРОПУСК ТЕКСТА] .....\n\n" + \
                 log_text[-1500:]
 
-        from aiogram.utils.keyboard import InlineKeyboardBuilder
-        back_builder = InlineKeyboardBuilder()
-        back_builder.button(
-            text="🔙 К охоте", callback_data=MenuCB(action="hunt").pack())
-
         # Сохраняем врага в кэш и создаём ключ (всегда, чтобы можно было посмотреть статистику)
         cache_key = f"{query.from_user.id}_{int(time.time())}_{random.randint(1000, 9999)}"
         enemy_cache[cache_key] = enemy
         asyncio.create_task(clear_enemy_cache(cache_key, 60))
 
+        from aiogram.utils.keyboard import InlineKeyboardBuilder
+        back_builder = InlineKeyboardBuilder()
+        back_builder.button(
+            text="⚔️ Снова в бой", callback_data=HuntCB(action="start").pack())
+        back_builder.button(
+            text="🔙 К охоте", callback_data=MenuCB(action="hunt").pack())
         back_builder.button(
             text="📊 Статистика боя",
-            callback_data=CombatStatsCB(
-                action="show", enemy_data=cache_key).pack()
+            callback_data=CombatStatsCB(action="show", enemy_data=cache_key).pack()
         )
-        back_builder.adjust(2)
+        back_builder.adjust(1, 2)
 
         await safe_edit(query.message, f"{log_text}\n\n<b>{result_msg}</b>", reply_markup=back_builder.as_markup())
 
