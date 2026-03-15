@@ -1095,9 +1095,9 @@ def simulate_combat_realtime(player, enemy):
                 has_magic_weapon = True
     has_free_hand = player.equip.get('right_hand') is None or player.equip.get('left_hand') is None
 
-    # Вспомогательная функция для форматирования состояния
+    # Вспомогательная функция для форматирования состояния (исправлено: hp не отрицательное)
     def status_str(target_stats, shield, is_player):
-        hp = target_stats['hp']
+        hp = max(0, target_stats['hp'])
         max_hp = target_stats['max_hp']
         shield_part = f" ✨ {shield:.1f}" if shield > 0 else ""
         return f"| ❤️ {hp:.1f}/{max_hp:.1f}{shield_part}"
@@ -1409,10 +1409,8 @@ def simulate_combat_realtime(player, enemy):
                             current_shield = min(current_shield + drain, p_stats["max_hp"] * 0.5)
                             msg += f" 🔋 +{fmt_float(drain, 4)} щита"
 
-                        # Добавляем состояние врага и игрока
+                        # Добавляем состояние врага (цели)
                         msg += f" {status_str(e_stats, enemy_shield, False)}"
-                        if p_stats["hp"] > 0:  # если игрок ещё жив
-                            msg += f" {status_str(p_stats, current_shield, True)}"
                         log.append(msg)
                     else:
                         if missed and can_phys and not can_magic:
@@ -1493,10 +1491,8 @@ def simulate_combat_realtime(player, enemy):
                             e_stats["hp"] = min(e_stats["max_hp"], e_stats["hp"] + heal)
                             msg += f" 🩸 +{fmt_float(heal, 4)} HP"
 
-                    # Добавляем состояние игрока и врага
+                    # Добавляем состояние игрока (цели)
                     msg += f" {status_str(p_stats, current_shield, True)}"
-                    if e_stats["hp"] > 0:
-                        msg += f" {status_str(e_stats, enemy_shield, False)}"
                     log.append(msg)
 
                     # Шипы игрока (отражают урон)
