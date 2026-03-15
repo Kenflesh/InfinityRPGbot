@@ -672,7 +672,7 @@ async def background_worker():
                         player.training_stat = None
                         try:
                             await bot.send_message(uid,
-                                f"🏋️‍♂️ Тренировка завершена!\n\nХарактеристика <b>{STAT_RU.get(stat, stat)}</b> улучшена.",
+                                f"🏋️ Тренировка завершена!\n\nХарактеристика <b>{STAT_RU.get(stat, stat)}</b> улучшена.",
                                 reply_markup=training_complete_kbd(stat))
                         except:
                             pass
@@ -1487,7 +1487,7 @@ def main_menu_kbd():
     builder.button(text="🎒 Инвентарь",
                    callback_data=MenuCB(action="inv").pack())
     builder.button(text="🔮 Магия", callback_data=MenuCB(
-        action="spells").pack())  # заменили "Навыки"
+        action="spells").pack())
     builder.button(text="🏪 Магазин",
                    callback_data=MenuCB(action="shop").pack())
     builder.button(text="🧪 Зелья", callback_data=MenuCB(
@@ -1507,7 +1507,7 @@ def waiting_kbd(state_end_time):
                    callback_data=ActionCB(action="cancel").pack())
     builder.button(text="⏳ Осталось времени",
                    callback_data=ActionCB(action="check_time").pack())
-    builder.adjust(1)
+    builder.adjust(2)
     return builder.as_markup()
 
 
