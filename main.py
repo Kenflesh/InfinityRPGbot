@@ -514,7 +514,8 @@ class Player:
         self.shop_last_update = 0
         self.potion_shop_assortment = []
         self.potion_shop_last_update = 0
-
+        
+        self.training_order = list(self.base_stats.keys())
         # Базовые (и начальные) статы (без учёта предметов и процентных зелий)
         self.base_stats = {
             "max_hp": 100,
@@ -568,12 +569,13 @@ class Player:
         self.current_difficulty = 1
 
         self.last_regen_time = time.time()
-        
+    
+    #Метод для миграции сохранений
     @classmethod
     def from_dict(cls, data):
         p = cls(data['uid'], data['name'])
         for k, v in data.items():
-            if k == 'stats':  # старый формат
+            if k == 'stats':
                 if 'hp' in v:
                     p.hp = v.pop('hp', p.hp)
                 if 'mp' in v:
@@ -583,6 +585,9 @@ class Player:
                 p.percent_bonus.update(v)
             else:
                 setattr(p, k, v)
+        # Миграция для старых сохранений
+        if not hasattr(p, 'training_order') or p.training_order is None:
+            p.training_order = [k for k in p.stat_upgrades.keys() if k not in ["hp", "mp"]]
         for stat in p.base_stats:
             if stat not in p.percent_bonus:
                 p.percent_bonus[stat] = 0.0
@@ -654,6 +659,9 @@ async def background_worker():
                             increment = base_increment * total_adapt
                         player.base_stats[stat] += increment
                         player.stat_upgrades[stat] += 1
+                        if stat in player.training_order:
+                            player.training_order.remove(stat)
+                            player.training_order.insert(0, stat)
                         player.state = 'idle'
                         player.training_stat = None
                         try:
@@ -1752,7 +1760,7 @@ def get_item_by_global_index(player, global_idx):
 async def menu_train(query: CallbackQuery, callback_data: MenuCB):
     player = await get_player(query.from_user.id)
     page = callback_data.page
-    stats = [s for s in player.stat_upgrades.keys() if s not in ["hp", "mp"]]
+    stats = player.training_order
 
     per_page = 9
     start = page * per_page
