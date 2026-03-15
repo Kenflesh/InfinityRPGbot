@@ -649,7 +649,7 @@ async def background_worker():
                         player.state = 'idle'
                         try:
                             await bot.send_message(uid,
-                            "👼 Вы воскресли и готовы к новым битвам!",
+                            "⚡️ Вы воскресли и готовы к новым битвам!",
                             reply_markup=main_menu_kbd())
                         except:
                             pass
@@ -1694,21 +1694,27 @@ async def cb_check_time(query: CallbackQuery, callback_data: ActionCB):
 
 @dp.callback_query()
 async def process_any_callback(query: CallbackQuery, bot: Bot):
+    # Специальные действия, которые обрабатываются отдельно и не требуют блокировки
     if query.data and (query.data.startswith("act:cancel") or query.data.startswith("act:check_time")):
         return
+
     await load_db()
     player = await get_player(query.from_user.id)
     await apply_passive_regen(player)
 
-    # Разрешаем некоторые callback даже если игрок мёртв или занят
-    if query.data:
-        if query.data.startswith("cbtstats:") or query.data.startswith("menu:hunt"):
-            # Пропускаем блокировку, позволяя другим обработчикам сработать
-            raise SkipHandler()
+    # Разрешённые префиксы callback_data, которые можно выполнять даже при не-idle состоянии
+    allowed_prefixes = (
+        'menu:', 'it:', 'spell:', 'cbtstats:', 'sellmass:',
+        'shop:', 'pot:', 'eqchoice:', 'act:', 'hunt:'
+    )
+    if query.data and any(query.data.startswith(p) for p in allowed_prefixes):
+        # Пропускаем дальше, позволяя другим обработчикам сработать
+        raise SkipHandler()
 
+    # Если игрок не в состоянии idle и действие не разрешено – блокируем
     if player.state != 'idle':
         remaining = player.state_end_time - time.time()
-        minutes = int(remaining//60)
+        minutes = int(remaining // 60)
         seconds = int(remaining % 60)
         if player.state == 'dead':
             await query.answer(f"Вы мертвы. Воскрешение через: {minutes} мин {seconds} сек.", show_alert=True)
@@ -1717,6 +1723,7 @@ async def process_any_callback(query: CallbackQuery, bot: Bot):
             await query.answer(f"Вы заняты ({state_rus}). Осталось: {minutes} мин {seconds} сек.", show_alert=True)
         return
 
+    # Если игрок свободен – пропускаем
     raise SkipHandler()
 
 
@@ -1901,7 +1908,6 @@ async def menu_hunt(query: CallbackQuery, callback_data: MenuCB):
     b.adjust(3, 1, 1)
 
     text = f"💰 Золото: {player.gold}\n⚔️ <b>Охота</b>\nМакс. доступная угроза: {player.max_unlocked_difficulty}\n"
-    text += f"Убито на текущей угрозе: {kills_on_current}/{KILLS_TO_UNLOCK_NEXT}"
     text += next_unlock_info
     text += "\n\nУстановите уровень угрозы для поиска."
 
@@ -1932,6 +1938,9 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
         await state.set_state(Form.waiting_for_difficulty)
         await query.answer()
     elif act == "start":
+        if player.state != 'idle':
+            await query.answer("Вы сейчас заняты и не можете начать бой!", show_alert=True)
+            return
         enemy = generate_enemy(player.current_difficulty)
         is_win, log, result_msg = simulate_combat_realtime(player, enemy)
 
@@ -2690,11 +2699,14 @@ async def menu_exped(query: CallbackQuery, callback_data: MenuCB):
 @dp.callback_query(ActionCB.filter(F.action == "start_exped"))
 async def start_exped(query: CallbackQuery, callback_data: ActionCB):
     player = await get_player(query.from_user.id)
+    if player.state != 'idle':
+        await query.answer("Вы сейчас заняты!", show_alert=True)
+        return
     player.state = 'expedition'
     player.state_end_time = time.time() + CONFIG["time_expedition"]
     await save_player(player)
     await safe_edit(query.message,
-                    "Вы отправились в экспедицию. Вернитесь через 5 минут.",
+                    "Вы отправились в экспедицию.",
                     reply_markup=waiting_kbd(player.state_end_time))
 
 
