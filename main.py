@@ -515,7 +515,6 @@ class Player:
         self.potion_shop_assortment = []
         self.potion_shop_last_update = 0
         
-        self.training_order = list(self.base_stats.keys())
         # Базовые (и начальные) статы (без учёта предметов и процентных зелий)
         self.base_stats = {
             "max_hp": 100,
@@ -541,6 +540,8 @@ class Player:
             "magic_crit_damage": 150.0,
             "magic_shield_drain": 0.0
         }
+        
+        self.training_order = list(self.base_stats.keys())
 
         # Текущие HP и MP
         self.hp = self.base_stats["max_hp"]
