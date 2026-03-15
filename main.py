@@ -1894,9 +1894,7 @@ async def menu_hunt(query: CallbackQuery, callback_data: MenuCB):
     
     next_unlock_info = ""
     if player.current_difficulty == player.max_unlocked_difficulty and kills_needed > 0:
-        next_unlock_info = f"\n⚔️ До следующей угрозы осталось убить: {kills_needed} врагов"
-    elif player.current_difficulty < player.max_unlocked_difficulty:
-        next_unlock_info = f"\n✅ Угроза {player.max_unlocked_difficulty} уже открыта"
+        next_unlock_info = f"\nДо следующей угрозы осталось убить: {kills_needed} врагов"
 
     b.button(text="◀️", callback_data=HuntCB(action="dec").pack())
     b.button(text=f"Угроза: {player.current_difficulty}",
@@ -1907,7 +1905,7 @@ async def menu_hunt(query: CallbackQuery, callback_data: MenuCB):
     b.button(text="🔙 Назад", callback_data=MenuCB(action="profile").pack())
     b.adjust(3, 1, 1)
 
-    text = f"💰 Золото: {player.gold}\n⚔️ <b>Охота</b>\nМакс. доступная угроза: {player.max_unlocked_difficulty}\n"
+    text = f"💰 Золото: {player.gold}\n\n⚔️ <b>Охота</b>\n\nМакс. доступная угроза: {player.max_unlocked_difficulty}\n"
     text += next_unlock_info
     text += "\n\nУстановите уровень угрозы для поиска."
 
