@@ -1998,8 +1998,15 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
         await query.answer()
     elif act == "start":
         if player.state != 'idle':
-            await query.answer("Вы сейчас заняты и не можете начать бой!", show_alert=True)
+            remaining = player.state_end_time - time.time()
+            minutes = int(remaining // 60)
+            seconds = int(remaining % 60)
+            if player.state == 'dead':
+                await query.answer(f"Вы мертвы. Воскрешение через: {minutes} мин {seconds} сек.", show_alert=True)
+            else:
+                await query.answer("Вы сейчас заняты и не можете начать бой!", show_alert=True)
             return
+        
         enemy = generate_enemy(player.current_difficulty)
         is_win, log, result_msg = simulate_combat_realtime(player, enemy)
 
