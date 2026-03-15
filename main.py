@@ -1774,7 +1774,7 @@ def get_stat_components(player, stat):
                 percent += val
             else:
                 flat += val
-                return base, flat, percent
+    return base, flat, percent
 
 def get_item_by_global_index(player, global_idx):
     """Возвращает (item, is_equip, slot_or_inv_idx) по глобальному индексу."""
