@@ -1523,32 +1523,17 @@ async def safe_edit(message: Message, text: str, reply_markup: InlineKeyboardMar
 # ===================== ПРОСМОТР ПРЕДМЕТА (без изменений, но добавим новые статы в описание) =====================
 
 
-async def get_item_view_data(player: Player, idx: int):
-    is_equip = False
-    real_idx = -1
-    item = None
-    slot_name = ""
-
-    btn_index = 0
-    for slot, eq_item in player.equip.items():
-        if eq_item:
-            if btn_index == idx:
-                item = eq_item
-                is_equip = True
-                slot_name = slot
-                break
-            btn_index += 1
-
-    if not is_equip:
-        for r_idx, inv_item in enumerate(player.inventory):
-            if btn_index == idx:
-                item = inv_item
-                real_idx = r_idx
-                break
-            btn_index += 1
-
+async def get_item_view_data(player: Player, global_idx: int):
+    item, is_equip, slot_or_idx = get_item_by_global_index(player, global_idx)
     if not item:
         return None, None
+
+    if is_equip:
+        slot_name = slot_or_idx
+        real_idx = -1
+    else:
+        real_idx = slot_or_idx
+        slot_name = ""
 
     type_ru = {
         "weapon1h_physical": "Одноручное физ. оружие",
@@ -1573,8 +1558,7 @@ async def get_item_view_data(player: Player, idx: int):
 
     for stat_key, stat_data in item["stats"].items():
         is_percent = stat_key in ["crit_chance", "crit_damage", "atk_spd", "drop_chance", "lifesteal", "thorns",
-        "accuracy", "evasion_rating", "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"]
-        # Используем ту же формулу, что и в upg_item
+                                   "accuracy", "evasion_rating", "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"]
         raw_cost = (100 * player.max_unlocked_difficulty + stat_data['base'] * 50 + stat_data['upgrades'] * stat_data['base'] * 20) * stat_data.get('upgrade_price_mult', 1.0)
         upg_cost = max(10, int(raw_cost))
         s_ru = f"{STAT_EMOJI.get(stat_key, '')} {STAT_RU.get(stat_key, stat_key)}"
@@ -1583,27 +1567,21 @@ async def get_item_view_data(player: Player, idx: int):
         curr_str = fmt_float(stat_data['current'], 4)
         base_str = fmt_float(stat_data['base'], 4)
         text += f"• {s_ru}: {curr_str}{bonus_symbol} (база {base_str}{bonus_symbol}, улучшений: {stat_data['upgrades']}) - Улучшить: 💰 {upg_cost} (+{base_str}{bonus_symbol})\n"
-        c_idx = 900 + list(player.equip.keys()).index(slot_name) if is_equip else real_idx
-        b.button(text=f"Улучшить {s_ru}", callback_data=ItemCB(action="upg", idx=c_idx, stat=stat_key).pack())
-        
+        b.button(text=f"Улучшить {s_ru}", callback_data=ItemCB(action="upg", idx=global_idx, stat=stat_key).pack())
+
     b.adjust(1)
 
     if is_equip:
-        b.row(InlineKeyboardButton(text="Снять", callback_data=ItemCB(
-            action="unequip", idx=c_idx).pack()))
+        b.row(InlineKeyboardButton(text="Снять", callback_data=ItemCB(action="unequip", idx=global_idx).pack()))
     else:
         allowed_slots = ITEM_TYPE_TO_SLOTS.get(item['item_type'], [])
         if len(allowed_slots) == 1:
-            b.row(InlineKeyboardButton(text="Надеть", callback_data=ItemCB(
-                action="equip", idx=real_idx).pack()))
+            b.row(InlineKeyboardButton(text="Надеть", callback_data=ItemCB(action="equip", idx=global_idx).pack()))
         elif len(allowed_slots) > 1:
-            b.row(InlineKeyboardButton(text="🔧 Выбрать слот", callback_data=ItemCB(
-                action="choose_slot", idx=real_idx).pack()))
-        b.row(InlineKeyboardButton(text=f"Продать (💰 {item['sell_price']})", callback_data=ItemCB(
-            action="sell", idx=real_idx).pack()))
+            b.row(InlineKeyboardButton(text="🔧 Выбрать слот", callback_data=ItemCB(action="choose_slot", idx=global_idx).pack()))
+        b.row(InlineKeyboardButton(text=f"Продать (💰 {item['sell_price']})", callback_data=ItemCB(action="sell", idx=global_idx).pack()))
 
-    b.row(InlineKeyboardButton(text="🔙 Назад",
-          callback_data=MenuCB(action="inv").pack()))
+    b.row(InlineKeyboardButton(text="🔙 Назад", callback_data=MenuCB(action="inv").pack()))
 
     return text, b.as_markup()
 
@@ -1753,6 +1731,23 @@ def get_percent_bonuses(player):
                     percent[stat_name] = percent.get(stat_name, 0) + current_val
     return percent
 
+def get_item_by_global_index(player, global_idx):
+    """Возвращает (item, is_equip, slot_or_inv_idx) по глобальному индексу."""
+    # Экипированные предметы
+    for slot, item in player.equip.items():
+        if item:
+            if global_idx == 0:
+                return item, True, slot
+            global_idx -= 1
+
+    # Предметы в инвентаре
+    for inv_idx, item in enumerate(player.inventory):
+        if global_idx == 0:
+            return item, False, inv_idx
+        global_idx -= 1
+
+    return None, None, None
+
 @dp.callback_query(MenuCB.filter(F.action == "train"))
 async def menu_train(query: CallbackQuery, callback_data: MenuCB):
     player = await get_player(query.from_user.id)
@@ -1768,7 +1763,7 @@ async def menu_train(query: CallbackQuery, callback_data: MenuCB):
     total_adapt = t_stats['adaptability']
     percent_bonuses = get_percent_bonuses(player)
 
-    text = f"💰 Золото: {player.gold}\n🏋️ <b>Тренировка</b>\nВыберите характеристику:\n\n"
+    text = f"🏋️ <b>Тренировка</b>\n\nВыберите характеристику:\n\n"
 
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     builder = InlineKeyboardBuilder()
@@ -1785,8 +1780,8 @@ async def menu_train(query: CallbackQuery, callback_data: MenuCB):
         # Реальный прирост к итоговому стану с учётом процентных бонусов
         real_gain = increment * (1 + percent_bonuses.get(stat, 0) / 100.0)
 
-        text += f"{i}. <b>{stat_name}</b> +{fmt_float(increment)} ({fmt_float(real_gain)})\n"
-        builder.button(text=f"{i} {STAT_EMOJI.get(stat, '')}", callback_data=TrainCB(stat=stat).pack())
+        text += f"<b>{stat_name}</b> +{fmt_float(increment)} ({fmt_float(real_gain)})\n"
+        builder.button(text=f"{STAT_EMOJI.get(stat, '')}", callback_data=TrainCB(stat=stat).pack())
 
     builder.adjust(3)
 
@@ -2085,17 +2080,20 @@ async def view_item(query: CallbackQuery, callback_data: ItemCB):
 @dp.callback_query(ItemCB.filter(F.action == "choose_slot"))
 async def choose_slot_for_equip(query: CallbackQuery, callback_data: ItemCB, state: FSMContext):
     player = await get_player(query.from_user.id)
-    idx = callback_data.idx
-    if idx >= len(player.inventory):
-        await query.answer("Предмет не найден!")
+    global_idx = callback_data.idx
+
+    item, is_equip, slot_or_idx = get_item_by_global_index(player, global_idx)
+    if not item or is_equip:
+        await query.answer("Предмет не найден в инвентаре!")
         return
-    item = player.inventory[idx]
+
     allowed_slots = ITEM_TYPE_TO_SLOTS.get(item['item_type'], [])
     if not allowed_slots:
         await query.answer("Этот предмет нельзя надеть!")
         return
 
-    await state.update_data(item_idx=idx)
+    # Сохраняем глобальный индекс для последующего выбора слота
+    await state.update_data(item_global_idx=global_idx)
 
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     builder = InlineKeyboardBuilder()
@@ -2106,27 +2104,33 @@ async def choose_slot_for_equip(query: CallbackQuery, callback_data: ItemCB, sta
             "amulet": "Амулет", "ring1": "Кольцо 1", "ring2": "Кольцо 2"
         }.get(slot, slot)
         builder.button(text=slot_ru, callback_data=EquipChoiceCB(
-            item_idx=idx, slot=slot).pack())
+            item_idx=global_idx, slot=slot).pack())
     builder.button(text="❌ Отмена", callback_data=MenuCB(action="inv").pack())
     builder.adjust(1)
     await safe_edit(query.message, "Выберите слот для экипировки:", reply_markup=builder.as_markup())
 
 
 @dp.callback_query(ItemCB.filter(F.action == "equip"))
-async def equip_item_single_slot(query: CallbackQuery, callback_data: ItemCB, state: FSMContext):
+async def equip_item_single_slot(query: CallbackQuery, callback_data: ItemCB):
     player = await get_player(query.from_user.id)
-    idx = callback_data.idx
-    if idx >= len(player.inventory):
-        await query.answer("Предмет не найден!")
+    global_idx = callback_data.idx
+
+    # Получаем предмет по глобальному индексу (должен быть в инвентаре)
+    item, is_equip, slot_or_idx = get_item_by_global_index(player, global_idx)
+    if not item or is_equip:
+        await query.answer("Предмет не найден в инвентаре!")
         return
-    item = player.inventory[idx]
+
+    # item находится в инвентаре, slot_or_idx — его индекс в inventory
+    inv_idx = slot_or_idx
     allowed_slots = ITEM_TYPE_TO_SLOTS.get(item['item_type'], [])
     if not allowed_slots:
         await query.answer("Этот предмет нельзя надеть!")
         return
-    # Берём первый слот
+
+    # Берём первый слот (для предметов с одним вариантом)
     slot = allowed_slots[0]
-    # Проверяем, можно ли надеть (аналогично equip_to_slot)
+    # Проверяем возможность экипировки
     hands_used = ITEM_HANDS_USED.get(item['item_type'], 0)
     if hands_used == 2:
         if player.equip['right_hand'] is not None or player.equip['left_hand'] is not None:
@@ -2144,15 +2148,20 @@ async def equip_item_single_slot(query: CallbackQuery, callback_data: ItemCB, st
                     await query.answer("Нельзя надеть одноручное оружие, пока в другой руке двуручное!", show_alert=True)
                     return
 
+    # Снимаем старый предмет, если есть
     old_item = player.equip[slot]
     if old_item:
         if len(player.inventory) >= player.inv_slots:
             await query.answer("Нет места в инвентаре для снятого предмета!", show_alert=True)
             return
         player.inventory.append(old_item)
-    player.equip[slot] = item
-    player.inventory.pop(idx)
 
+    # Экипируем новый предмет
+    player.equip[slot] = item
+    # Удаляем предмет из инвентаря по его индексу
+    player.inventory.pop(inv_idx)
+
+    # Если предмет двуручный, занимаем и вторую руку
     if hands_used == 2:
         other = 'left_hand' if slot == 'right_hand' else 'right_hand'
         player.equip[other] = item
@@ -2163,16 +2172,19 @@ async def equip_item_single_slot(query: CallbackQuery, callback_data: ItemCB, st
 
 
 @dp.callback_query(EquipChoiceCB.filter())
-async def equip_to_slot(query: CallbackQuery, callback_data: EquipChoiceCB, state: FSMContext):
+async def equip_to_slot(query: CallbackQuery, callback_data: EquipChoiceCB):
     player = await get_player(query.from_user.id)
-    idx = callback_data.item_idx
+    global_idx = callback_data.item_idx
     slot = callback_data.slot
 
-    if idx >= len(player.inventory):
-        await query.answer("Предмет не найден!")
+    item, is_equip, slot_or_idx = get_item_by_global_index(player, global_idx)
+    if not item or is_equip:
+        await query.answer("Предмет не найден в инвентаре!")
         return
-    item = player.inventory[idx]
 
+    inv_idx = slot_or_idx  # индекс в inventory
+
+    # Проверяем, разрешён ли слот для этого типа предмета
     allowed = ITEM_TYPE_TO_SLOTS.get(item['item_type'], [])
     if slot not in allowed:
         await query.answer("Этот предмет нельзя надеть в выбранный слот!", show_alert=True)
@@ -2198,8 +2210,9 @@ async def equip_to_slot(query: CallbackQuery, callback_data: EquipChoiceCB, stat
     old_item = player.equip[slot]
     if old_item:
         player.inventory.append(old_item)
+
     player.equip[slot] = item
-    player.inventory.pop(idx)
+    player.inventory.pop(inv_idx)
 
     await save_player(player)
     await query.answer(f"Экипировано в {slot}!")
@@ -2209,39 +2222,38 @@ async def equip_to_slot(query: CallbackQuery, callback_data: EquipChoiceCB, stat
 @dp.callback_query(ItemCB.filter(F.action == "unequip"))
 async def uneq_item(query: CallbackQuery, callback_data: ItemCB):
     player = await get_player(query.from_user.id)
-    idx = callback_data.idx
-    if idx >= 900:  # экипированный предмет
-        slot_index = idx - 900
-        slots = list(player.equip.keys())
-        if slot_index >= len(slots):
-            return
-        slot = slots[slot_index]
-    else:
-        await query.answer("Ошибка: предмет не экипирован.")
+    global_idx = callback_data.idx
+
+    item, is_equip, slot_or_idx = get_item_by_global_index(player, global_idx)
+    if not item or not is_equip:
+        await query.answer("Предмет не экипирован.")
         return
-    item = player.equip[slot]
-    if item:
-        if len(player.inventory) < player.inv_slots:
-            player.inventory.append(item)
-            player.equip[slot] = None
-            await save_player(player)
-            await query.answer("Предмет снят!")
-            await menu_inv(query, MenuCB(action="inv"))
-        else:
-            await query.answer("В инвентаре нет места!", show_alert=True)
+
+    slot = slot_or_idx
+    if len(player.inventory) < player.inv_slots:
+        player.inventory.append(item)
+        player.equip[slot] = None
+        await save_player(player)
+        await query.answer("Предмет снят!")
+        await menu_inv(query, MenuCB(action="inv"))
     else:
-        await query.answer("Предмет не найден.")
+        await query.answer("В инвентаре нет места!", show_alert=True)
 
 
 @dp.callback_query(ItemCB.filter(F.action == "sell"))
 async def sell_item(query: CallbackQuery, callback_data: ItemCB):
     player = await get_player(query.from_user.id)
-    idx = callback_data.idx
-    if idx >= len(player.inventory):
+    global_idx = callback_data.idx
+
+    item, is_equip, slot_or_idx = get_item_by_global_index(player, global_idx)
+    if not item or is_equip:
+        await query.answer("Предмет не найден в инвентаре!")
         return
-    item = player.inventory.pop(idx)
+
+    inv_idx = slot_or_idx
     earn = item.get("sell_price", 10)
     player.gold += earn
+    player.inventory.pop(inv_idx)
     await save_player(player)
     await query.answer(f"Продано за {earn} золота.")
     await menu_inv(query, MenuCB(action="inv"))
@@ -2250,23 +2262,10 @@ async def sell_item(query: CallbackQuery, callback_data: ItemCB):
 @dp.callback_query(ItemCB.filter(F.action == "upg"))
 async def upg_item(query: CallbackQuery, callback_data: ItemCB):
     player = await get_player(query.from_user.id)
-    idx = callback_data.idx
+    global_idx = callback_data.idx
     stat_key = callback_data.stat
 
-    is_equip = idx >= 900
-    if is_equip:
-        slot_index = idx - 900
-        slots = list(player.equip.keys())
-        if slot_index >= len(slots):
-            return
-        slot = slots[slot_index]
-        item = player.equip[slot]
-    else:
-        inv_idx = idx
-        if inv_idx >= len(player.inventory):
-            return
-        item = player.inventory[inv_idx]
-
+    item, is_equip, slot_or_idx = get_item_by_global_index(player, global_idx)
     if not item or stat_key not in item["stats"]:
         return
 
@@ -2278,14 +2277,14 @@ async def upg_item(query: CallbackQuery, callback_data: ItemCB):
     if player.gold >= upg_cost:
         player.gold -= upg_cost
         s_data['upgrades'] += 1
-        s_data['current'] = s_data['base'] * (s_data['upgrades']+1)
-        item['sell_price'] += int(upg_cost*0.3)
+        s_data['current'] = s_data['base'] * (s_data['upgrades'] + 1)
+        item['sell_price'] += int(upg_cost * 0.3)
 
         await save_player(player)
         await query.answer("Характеристика улучшена!")
 
         updated_player = await get_player(query.from_user.id)
-        text, reply_markup = await get_item_view_data(updated_player, callback_data.idx)
+        text, reply_markup = await get_item_view_data(updated_player, global_idx)
         if text:
             await safe_edit(query.message, text, reply_markup)
         else:
