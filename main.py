@@ -88,9 +88,21 @@ ITEM_TYPE_RU = {
     "boots": "👢 Обувь",
     "belt": "🧣 Пояс",
     "robe": "👘 Одежда",
-    "helmet": "⛑ Шлем",
+    "helmet": "⛑ Голова",
     "amulet": "📿 Амулет",
     "ring": "💍 Кольцо"
+}
+
+SLOT_RU = {
+    "right_hand": "✋ Правая рука",
+    "left_hand": "🤚 Левая рука",
+    "helmet": "⛑️ Голова",
+    "robe": "👘 Одежда",
+    "belt": "🧣 Пояс",
+    "boots": "👢 Обувь",
+    "amulet": "📿 Амулет",
+    "ring1": "💍 Кольцо 1",
+    "ring2": "💍 Кольцо 2"
 }
 
 TRAINING_INCREMENTS = {
@@ -1288,10 +1300,10 @@ def simulate_combat_realtime(player, enemy):
             mult = 1 - base
             if target_stats is p_stats:
                 p_multipliers[stat] *= mult
-                msg += f"✨ {STAT_RU.get(stat, stat)} уменьшен в {mult:.3f} раз (навсегда)"
+                msg += f"✨ Ваш стат {STAT_RU.get(stat, stat)} уменьшен в {fmt_float(mult, 5)}"
             else:
                 e_multipliers[stat] *= mult
-                msg += f"✨ Враг: {STAT_RU.get(stat, stat)} уменьшен в {mult:.3f} раз (навсегда)"
+                msg += f"✨ Вражеский стат {STAT_RU.get(stat, stat)} уменьшен в {fmt_float(mult, 5)}"
 
         elif eff_type == "time_stop":
             effect_copy = effect.copy()
@@ -1539,7 +1551,7 @@ def simulate_combat_realtime(player, enemy):
                             e_stats["mp"] -= spell["mp_cost"]
                             cd = spell["base_cooldown"] / (1 + spell["upgrades"] * 0.1)
                             enemy_cooldowns[idx] = t + cd
-                            msg = f"[{fmt_float(t,6)}с] Враг использует заклинание ✨ {spell['name']}: "
+                            msg = f"[{fmt_float(t,6)}с] Враг использует заклинание ✨ {spell['name']}:\n"
                             for eff in spell["effects"]:
                                 if eff["target"] == TARGET_ENEMY:
                                     msg += apply_effect(eff, e_stats, p_stats, False, p_effects)
@@ -1607,7 +1619,7 @@ def simulate_combat_realtime(player, enemy):
                                 e_stats["hp"] -= th
                                 log.append(f"[{fmt_float(t,6)}с] 🌵 Ваши шипы нанесли врагу {fmt_float(th, 4)} урона {status_str(e_stats, enemy_shield, False)}")
                     else:
-                        log.append(f"[{fmt_float(t,6)}с] 🌀 Вы уклонились")
+                        log.append(f"[{fmt_float(t,6)}с] 💨 Вы уклонились")
             else:
                 e_next_action += e_action_interval
 
@@ -1707,23 +1719,7 @@ async def get_item_view_data(player: Player, global_idx: int):
         real_idx = slot_or_idx
         slot_name = ""
 
-    type_ru = {
-        "weapon1h_physical": "Одноручное физ. оружие",
-        "weapon1h_magical": "Одноручное маг. оружие",
-        "weapon2h_physical": "Двуручное физ. оружие",
-        "weapon2h_magical": "Двуручное маг. оружие",
-        "shield": "Щит",
-        "tome": "Фолиант",
-        "tome2h": "Тяжёлый фолиант",
-        "boots": "Обувь",
-        "belt": "Пояс",
-        "robe": "Одежда",
-        "helmet": "Головной убор",
-        "amulet": "Амулет",
-        "ring": "Кольцо"
-    }.get(item['item_type'], item['item_type'])
-
-    text = f"💰 Золото: {player.gold}\n📦 <b>{item['name']}</b> ({'Надето' if is_equip else 'В сумке'})\nТип: {type_ru}\n\nХарактеристики:\n"
+    text = f"💰 Золото: {player.gold}\n📦 <b>{item['name']}</b> ({'Надето' if is_equip else 'В сумке'})\nТип: {ITEM_TYPE_RU.get(item['item_type'], item['item_type'])}\n\nХарактеристики:\n"
 
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     b = InlineKeyboardBuilder()
@@ -1731,14 +1727,14 @@ async def get_item_view_data(player: Player, global_idx: int):
     for stat_key, stat_data in item["stats"].items():
         is_percent = stat_key in ["crit_chance", "crit_damage", "atk_spd", "gold_mult", "luck", "lifesteal", "thorns",
                                    "accuracy", "evasion_rating", "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"]
-        raw_cost = (100 * player.max_unlocked_difficulty + stat_data['base'] * 50 + stat_data['upgrades'] * stat_data['base'] * 20) * stat_data.get('upgrade_price_mult', 1.0)
-        upg_cost = max(10, int(raw_cost))
+        raw_cost = GOLD_PER_STAGE * 25 * player.max_unlocked_difficulty * stat_data.get('upgrade_price_mult', 1.0)
+        upg_cost = max(100, int(raw_cost))
         s_ru = f"{STAT_EMOJI.get(stat_key, '')} {STAT_RU.get(stat_key, stat_key)}"
         bonus_type = stat_data.get('bonus_type', 'flat')
         bonus_symbol = '%' if bonus_type == 'percent' else ''
         curr_str = fmt_float(stat_data['current'], 4)
         base_str = fmt_float(stat_data['base'], 4)
-        text += f"• {s_ru}: {curr_str}{bonus_symbol} (база {base_str}{bonus_symbol}, улучшений: {stat_data['upgrades']}) - Улучшить: 💰 {upg_cost} (+{base_str}{bonus_symbol})\n"
+        text += f"• {s_ru}: {curr_str}{bonus_symbol} (база {base_str}{bonus_symbol}, улучшений {stat_data['upgrades']})\n         Улучшить: 💰 {upg_cost} (+{base_str}{bonus_symbol})\n"
         b.button(text=f"Улучшить {s_ru}", callback_data=ItemCB(action="upg", idx=global_idx, stat=stat_key).pack())
 
     b.adjust(1)
@@ -1908,7 +1904,7 @@ async def menu_profile(query: CallbackQuery, callback_data: MenuCB):
     text += f"{STAT_EMOJI['lifesteal']} {STAT_RU['lifesteal']}: {t_stats['lifesteal']:.2f}% | {STAT_EMOJI['thorns']} {STAT_RU['thorns']}: {t_stats['thorns']:.2f}%\n"
     text += f"{STAT_EMOJI['magic_shield_drain']} {STAT_RU['magic_shield_drain']}: {t_stats['magic_shield_drain']:.2f}% | {STAT_EMOJI['magic_efficiency']} {STAT_RU['magic_efficiency']}: {t_stats['magic_efficiency']:.2f}\n"
     text += f"{STAT_EMOJI['armor_pen']} {STAT_RU['armor_pen']}: {t_stats['armor_pen']:.2f} | {STAT_EMOJI['atk_spd']} {STAT_RU['atk_spd']}: {t_stats['atk_spd']:.2f}\n"
-    text += f"{STAT_EMOJI['gold_mult']} {STAT_RU['gold_mult']}: x{t_stats['gold_mult']:.2f} | {STAT_EMOJI['luck']} {STAT_RU['luck']}: x{t_stats['luck']:.2f} | {STAT_EMOJI['talent']} {STAT_RU['talent']}: x{t_stats['talent']:.2f}\n"
+    text += f"{STAT_EMOJI['gold_mult']} {STAT_RU['gold_mult']}: x{fmt_float(t_stats['gold_mult'], 4)} | {STAT_EMOJI['luck']} {STAT_RU['luck']}: x{fmt_float(t_stats['luck'], 4)} | {STAT_EMOJI['talent']} {STAT_RU['talent']}: x{fmt_float(t_stats['talent'], 4)}\n"
     text += f"{STAT_EMOJI['effect_resistance']} {STAT_RU['effect_resistance']}: {t_stats['effect_resistance']:.2f}\n"
     
     await safe_edit(query.message, text, reply_markup=main_menu_kbd())
@@ -2281,11 +2277,7 @@ async def show_combat_stats(query: CallbackQuery, callback_data: CombatStatsCB):
     text += f"{STAT_EMOJI['magic_shield_drain']} Ист.энергии: {enemy.get('magic_shield_drain', 0):.1f}%\n"
     text += f"{STAT_EMOJI['atk_spd']} Ск.атаки: {enemy['atk_spd']:.2f}\n"
     text += f"{STAT_EMOJI['effect_resistance']} Сопр. эффектам: {enemy.get('effect_resistance', 0):.1f}\n"
-    # Добавляем регенерацию врага, если она присутствует
-    if 'hp_regen' in enemy:
-        text += f"{STAT_EMOJI['hp_regen']} Реген HP: {enemy['hp_regen']:.2f}/мин\n"
-    if 'mp_regen' in enemy:
-        text += f"{STAT_EMOJI['mp_regen']} Реген MP: {enemy['mp_regen']:.2f}/мин\n"
+    text += f"{STAT_EMOJI['hp_regen']} Реген HP: {enemy['hp_regen']:.2f}/мин | {STAT_EMOJI['mp_regen']} Реген MP: {enemy['mp_regen']:.2f}/мин\n"
 
     await query.message.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
@@ -2307,41 +2299,32 @@ async def menu_inv(query: CallbackQuery, callback_data: MenuCB):
     all_items = []
     btn_index = 0
 
-    for slot, item in player.equip.items():
-        slot_ru = {
-            "right_hand": "Правая рука", "left_hand": "Левая рука", "boots": "Обувь",
-            "belt": "Пояс", "robe": "Одежда", "helmet": "Голова",
-            "amulet": "Амулет", "ring1": "Кольцо 1", "ring2": "Кольцо 2"
-        }.get(slot, slot)
+    order = ["right_hand", "left_hand", "helmet", "robe", "belt", "boots", "amulet", "ring1", "ring2"]
+    for slot in order:
+        item = player.equip.get(slot)
+        slot_name = SLOT_RU.get(slot, slot)
         if item:
-            text += f"{btn_index+1}. [{slot_ru}] {item['name']}\n"
-            b.button(
-                text=f"{btn_index+1}", callback_data=ItemCB(action="view", idx=btn_index).pack())
-            all_items.append({"data": item, "is_equip": True,
-                             "slot": slot, "real_idx": -1})
+            text += f"{btn_index+1}. [{slot_name}] {item['name']}\n"
+            b.button(text=f"{btn_index+1}", callback_data=ItemCB(action="view", idx=btn_index).pack())
+            all_items.append({"data": item, "is_equip": True, "slot": slot, "real_idx": -1})
             btn_index += 1
         else:
-            text += f"- [{slot_ru}] Пусто\n"
+            text += f"- [{slot_name}] Пусто\n"
 
     text += "\nВ сумке:\n"
     if not player.inventory:
         text += "Пусто\n"
     else:
         for real_idx, item in enumerate(player.inventory):
-            item_type_ru = ITEM_TYPE_RU.get(
-                item['item_type'], item['item_type'])
+            item_type_ru = ITEM_TYPE_RU.get(item['item_type'], item['item_type'])
             text += f"{btn_index+1}. [{item_type_ru}] {item['name']}\n"
-            b.button(
-                text=f"{btn_index+1}", callback_data=ItemCB(action="view", idx=btn_index).pack())
-            all_items.append({"data": item, "is_equip": False,
-                             "slot": None, "real_idx": real_idx})
+            b.button(text=f"{btn_index+1}", callback_data=ItemCB(action="view", idx=btn_index).pack())
+            all_items.append({"data": item, "is_equip": False, "slot": None, "real_idx": real_idx})
             btn_index += 1
 
     b.adjust(5)
-    b.row(InlineKeyboardButton(text="💰 Массовая продажа",
-          callback_data=SellMassCB(action="menu").pack()))
-    b.row(InlineKeyboardButton(text="🔙 Назад",
-          callback_data=MenuCB(action="profile").pack()))
+    b.row(InlineKeyboardButton(text="💰 Массовая продажа", callback_data=SellMassCB(action="menu").pack()))
+    b.row(InlineKeyboardButton(text="🔙 Назад", callback_data=MenuCB(action="profile").pack()))
 
     await safe_edit(query.message, text, reply_markup=b.as_markup())
 
@@ -2713,9 +2696,9 @@ async def menu_shop(query: CallbackQuery, callback_data: MenuCB):
         it = entry["item"]
         item_type_ru = ITEM_TYPE_RU.get(it['item_type'], it['item_type'])
         stat_desc = ", ".join(
-            [f"{STAT_EMOJI.get(k, '')}{STAT_RU.get(k, k)}:{v['base']:.2f}" for k, v in it['stats'].items()])
+            [f"{STAT_EMOJI.get(k, '')}{STAT_RU.get(k, k)}: {fmt_float(v['base'], 3)}" for k, v in it['stats'].items()])
         price = entry["price"]
-        text += f"\n{btn_num}. 📦 [{item_type_ru}] {it['name']} ({stat_desc})\n   Стоимость: 💰 {price}\n"
+        text += f"\n{btn_num}. 📦 [{item_type_ru}] {it['name']}:\n{stat_desc}\n         Стоимость: 💰 {price}\n"
         b.button(text=f"{btn_num}", callback_data=ShopCB(
             action="buy_it", idx=original_idx).pack())
         btn_num += 1
