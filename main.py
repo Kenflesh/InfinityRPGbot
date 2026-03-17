@@ -2675,13 +2675,12 @@ async def sell_mass_price_input(message: Message, state: FSMContext):
 
 # ===================== МАГАЗИН =====================
 
-
 @dp.callback_query(MenuCB.filter(F.action == "shop"))
 async def menu_shop(query: CallbackQuery, callback_data: MenuCB):
     player = await get_player(query.from_user.id)
     await update_shop(player)
 
-    text = f"💰 Золото: {player.gold}\n🏪 <b>Магазин (обновляется каждые 5 мин)</b>\n\nАссортимент:\n"
+    text = f"💰 Золото: {player.gold}\n🏪 <b>Магазин (обновляется каждые 5 мин)</b>\n\n📦 Ассортимент:\n"
 
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     b = InlineKeyboardBuilder()
@@ -2695,10 +2694,10 @@ async def menu_shop(query: CallbackQuery, callback_data: MenuCB):
     for original_idx, entry in items_with_idx:
         it = entry["item"]
         item_type_ru = ITEM_TYPE_RU.get(it['item_type'], it['item_type'])
-        stat_desc = ", ".join(
+        stat_desc = "\n'".join(
             [f"{STAT_EMOJI.get(k, '')}{STAT_RU.get(k, k)}: {fmt_float(v['base'], 3)}" for k, v in it['stats'].items()])
         price = entry["price"]
-        text += f"\n{btn_num}. 📦 [{item_type_ru}] {it['name']}:\n{stat_desc}\n         Стоимость: 💰 {price}\n"
+        text += f"\n{btn_num}. [{item_type_ru}] {it['name']}:\n{stat_desc}\n         Стоимость: 💰 {price}\n"
         b.button(text=f"{btn_num}", callback_data=ShopCB(
             action="buy_it", idx=original_idx).pack())
         btn_num += 1
