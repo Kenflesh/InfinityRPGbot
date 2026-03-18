@@ -1964,13 +1964,15 @@ async def get_item_view_data(player: Player, global_idx: int):
         text += f"• {s_ru}: {curr_str}{bonus_symbol} (база {base_str}{bonus_symbol}, улучшений {stat_data['upgrades']})\n"
         text += f"         Улучшить: 💰 {upg_cost} (+{base_str}{bonus_symbol})\n"
 
+        # Кнопки для этого стата
+        stat_buttons = []
         upg_text = f"⬆️ {STAT_EMOJI.get(stat_key, '')}".strip()
-        b.button(text=upg_text, callback_data=ItemCB(action="upg", idx=global_idx, stat=stat_key).pack())
+        stat_buttons.append(InlineKeyboardButton(text=upg_text, callback_data=ItemCB(action="upg", idx=global_idx, stat=stat_key).pack()))
 
         if dust > 0:
-            b.button(text="🎲 Сброс", callback_data=ItemCB(action="reroll", idx=global_idx, stat=stat_key).pack())
+            stat_buttons.append(InlineKeyboardButton(text="🎲 Сброс", callback_data=ItemCB(action="reroll", idx=global_idx, stat=stat_key).pack()))
 
-    b.adjust(2)
+        b.row(*stat_buttons)  # каждый стат в отдельном ряду
 
     text += f"\n🔮 Пыль душ: {dust} | Боёв: {battle_count}/{DUST_PER_BATTLE}\n"
     if dust > 0:
@@ -3024,12 +3026,11 @@ async def reroll_item(query: CallbackQuery, callback_data: ItemCB):
         # Перегенерируем этот же стат
         new_stat_key = old_stat_key
     else:
-        # Ищем доступные другие статы
+        # Ищем доступные другие статы (исключая все текущие)
         allowed_all = ITEM_ALLOWED_STATS.get(item_type, [])
         if not allowed_all:
             allowed_all = list(STAT_RU.keys())
         current_stats = set(item['stats'].keys())
-        current_stats.discard(old_stat_key)
         available = [s for s in allowed_all if s not in current_stats]
         if not available:
             await query.answer("Нет других доступных статов для этого предмета!", show_alert=True)
@@ -3039,9 +3040,15 @@ async def reroll_item(query: CallbackQuery, callback_data: ItemCB):
     # Генерируем новый стат
     new_stat_data = generate_single_stat(new_stat_key, item_type, rarity)
 
-    # Удаляем старый стат и добавляем новый (даже если ключ тот же)
-    del item['stats'][old_stat_key]
-    item['stats'][new_stat_key] = new_stat_data
+    # Сохраняем порядок статов (вставляем на ту же позицию)
+    old_keys = list(item['stats'].keys())
+    new_stats = {}
+    for key in old_keys:
+        if key == old_stat_key:
+            new_stats[new_stat_key] = new_stat_data
+        else:
+            new_stats[key] = item['stats'][key]
+    item['stats'] = new_stats
 
     # Пересчитываем sell_price
     recalc_sell_price(item)
