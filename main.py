@@ -723,6 +723,66 @@ async def apply_passive_regen(player):
         player.last_regen_time = now - (delta % 60)
         await save_player(player)
 
+async def check_and_complete_state(player):
+    """Проверяет, не истекло ли состояние игрока, и если да – завершает его."""
+    now = time.time()
+    if player.state != 'idle' and now >= player.state_end_time:
+        if player.state == 'dead':
+            t_stats = get_total_stats(player)
+            player.hp = t_stats['max_hp']
+            player.state = 'idle'
+            try:
+                await bot.send_message(player.uid, "⚡️ Вы воскресли и готовы к новым битвам!", reply_markup=main_menu_kbd())
+            except:
+                pass
+        elif player.state == 'training':
+            stat = player.training_stat
+            base_increment = TRAINING_INCREMENTS.get(stat, 0.01)
+            t_stats = get_total_stats(player)
+            total_adapt = t_stats['adaptability']
+            if stat == 'adaptability':
+                increment = base_increment
+            else:
+                increment = base_increment * total_adapt
+            player.base_stats[stat] += increment
+            player.stat_upgrades[stat] += 1
+            if stat in player.training_order:
+                player.training_order.remove(stat)
+                player.training_order.insert(0, stat)
+            player.state = 'idle'
+            player.training_stat = None
+            try:
+                await bot.send_message(player.uid,
+                    f"🏋️ Тренировка завершена!\n\nХарактеристика <b>{STAT_RU.get(stat, stat)}</b> улучшена.",
+                    reply_markup=training_complete_kbd(stat))
+            except:
+                pass
+        elif player.state == 'expedition':
+            t_stats = get_total_stats(player)
+            base_gold = GOLD_PER_STAGE * 20 * player.max_unlocked_difficulty
+            gold_found = int(base_gold * random.uniform(0.1, 3) * t_stats["gold_mult"])
+            player.gold += gold_found
+            msg = f"🧭 Экспедиция завершена!\nВы нашли: 💰 {gold_found} золота."
+            gold_mult = 0.4
+            items_found = 0
+            while random.random() < gold_mult and items_found < 3:
+                item_type = random.choice(ITEM_TYPES)
+                rarity = max(1, player.max_unlocked_difficulty * t_stats["gold_mult"])
+                item = generate_item(item_type, rarity)
+                if len(player.inventory) < player.inv_slots:
+                    player.inventory.append(item)
+                    items_found += 1
+                    msg += f"\n📦 Найден предмет: {item['name']}"
+                else:
+                    msg += "\n📦 Инвентарь полон, предмет потерян!"
+                    break
+                gold_mult *= 0.5
+            player.state = 'idle'
+            try:
+                await bot.send_message(player.uid, msg, reply_markup=main_menu_kbd())
+            except:
+                pass
+        await save_player(player)
 
 async def background_worker():
     while True:
@@ -1181,6 +1241,10 @@ def get_total_stats(player):
 
 # ===================== НОВАЯ СИМУЛЯЦИЯ БОЯ =====================
 
+async def run_combat_simulation(player, enemy):
+    loop = asyncio.get_event_loop()
+    # Запускаем синхронную функцию в отдельном потоке
+    return await loop.run_in_executor(None, simulate_combat_realtime, player, enemy)
 
 def simulate_combat_realtime(player, enemy):
     p_stats = get_total_stats(player)
@@ -2026,6 +2090,7 @@ async def cb_cancel(query: CallbackQuery, callback_data: ActionCB):
 @dp.callback_query(ActionCB.filter(F.action == "check_time"))
 async def cb_check_time(query: CallbackQuery, callback_data: ActionCB):
     player = await get_player(query.from_user.id)
+    await check_and_complete_state(player)
     if player.state != 'idle':
         remaining = player.state_end_time - time.time()
         minutes = int(remaining//60)
@@ -2046,6 +2111,8 @@ async def process_any_callback(query: CallbackQuery, bot: Bot):
     await load_db()
     player = await get_player(query.from_user.id)
     await apply_passive_regen(player)
+    
+    await check_and_complete_state(player)
 
     # Разрешённые префиксы callback_data, которые можно выполнять даже при не-idle состоянии
     allowed_prefixes = (
@@ -2132,14 +2199,6 @@ def get_item_by_global_index(player, global_idx):
             if global_idx == 0:
                 return item, True, slot
             global_idx -= 1
-
-    # Предметы в инвентаре
-    for inv_idx, item in enumerate(player.inventory):
-        if global_idx == 0:
-            return item, False, inv_idx
-        global_idx -= 1
-
-    return None, None, None
 
     # Предметы в инвентаре
     for inv_idx, item in enumerate(player.inventory):
@@ -2329,7 +2388,7 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
                 return
             
             enemy = generate_enemy(player.current_difficulty)
-            is_win, log, result_msg = simulate_combat_realtime(player, enemy)
+            is_win, log, result_msg = await run_combat_simulation(player, enemy)
 
             t_stats = get_total_stats(player)
             result_msg += f"\n❤️ Осталось здоровья: {player.hp:.1f}/{t_stats['max_hp']:.1f}, 💧 маны: {player.mp:.1f}/{t_stats['max_mp']:.1f}"
