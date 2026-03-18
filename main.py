@@ -46,11 +46,12 @@ leaderboard_cache = {
 KILLS_TO_UNLOCK_NEXT = 25
 GOLD_PER_STAGE = 10
 DUST_PER_BATTLE = 50
-SHOP_BASE_PRICE = 150
-ITEM_DROP_CHANCE_FROM_ENEMY = 0.05
+SHOP_BASE_PRICE = 15 * GOLD_PER_STAGE
+ITEM_DROP_CHANCE_FROM_ENEMY = 0.075
 ARCANE_GEOMETRIC_MULT = 0.1
 
 MAX_GUARANTEED_STATS = 5
+MAX_STATS_COUNT = 10
 MAX_STATS_PER_ITEM = {"ring": 12}
 
 TWOHAND_MULTIPLIER = 2.0
@@ -931,7 +932,7 @@ def generate_item(item_type, rarity):
     name = generate_item_name(item_type)
 
     # Максимальное количество статов для данного типа предмета (кольца могут иметь больше)
-    max_stats = MAX_STATS_PER_ITEM.get(item_type, 10)
+    max_stats = MAX_STATS_PER_ITEM.get(item_type, MAX_STATS_COUNT)
     stats_count = 1  # минимум один стат
 
     # Гарантированные статы от целых сотен редкости (не более MAX_GUARANTEED_STATS и не более max_stats-1)
@@ -2019,8 +2020,8 @@ async def compare_item(query: CallbackQuery, callback_data: ItemCB):
                 continue
             shown_items.add(item_id)
             slot_name = SLOT_RU.get(slot, slot)
-            text += f"<b>[{slot_name}]</b>\n"
-            text += f"📦 <b>{slot_item['name']}</b>\nТип: {ITEM_TYPE_RU.get(slot_item['item_type'], slot_item['item_type'])}\n\nХарактеристики:\n"
+            text += f"<b>Слот: [{slot_name}]</b>\n\n"
+            text += f"<b>{slot_item['name']}</b>\nТип: {ITEM_TYPE_RU.get(slot_item['item_type'], slot_item['item_type'])}\n\nХарактеристики:\n"
             for stat_key, stat_data in slot_item['stats'].items():
                 is_percent = stat_key in PERCENT_STATS
                 s_ru = f"{STAT_EMOJI.get(stat_key, '')} {STAT_RU.get(stat_key, stat_key)}"
@@ -2541,7 +2542,7 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
             result_msg += f"\n❤️ Осталось здоровья: {player.hp:.1f}/{t_stats['max_hp']:.1f}, 💧 маны: {player.mp:.1f}/{t_stats['max_mp']:.1f}"
 
             if is_win:
-                drop_chance_scaled = ITEM_DROP_CHANCE_FROM_ENEMY  # фиксированный шанс 5%
+                drop_chance_scaled = ITEM_DROP_CHANCE_FROM_ENEMY
                 if random.random() < drop_chance_scaled:
                     item_type = random.choice(ITEM_TYPES)
                     rarity = max(1, player.current_difficulty * t_stats["luck"])
