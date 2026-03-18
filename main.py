@@ -543,6 +543,7 @@ class Form(StatesGroup):
 class MenuCB(CallbackData, prefix="menu"):
     action: str
     page: int = 0
+    refresh: bool = True  
 
 
 class ActionCB(CallbackData, prefix="act"):
@@ -3185,9 +3186,11 @@ async def sell_mass_price_input(message: Message, state: FSMContext):
 @dp.callback_query(MenuCB.filter(F.action == "shop"))
 async def menu_shop(query: CallbackQuery, callback_data: MenuCB):
     player = await get_player(query.from_user.id)
-    await update_shop(player)
+    # Обновляем магазин только если refresh=True или ассортимент пуст
+    if callback_data.refresh or not player.shop_assortment:
+        await update_shop(player)
 
-    text = f"💰 Золото: {player.gold}\n🏪 <b>Магазин (обновляется каждые 5 мин)</b>\n\n📦 Ассортимент:\n"
+    text = f"💰 Золото: {player.gold}\n🏪 <b>Магазин</b>\n\n📦 Ассортимент:\n"
 
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     b = InlineKeyboardBuilder()
@@ -3245,7 +3248,7 @@ async def process_shop(query: CallbackQuery, callback_data: ShopCB):
             else:
                 await query.answer("Инвентарь полон!", show_alert=True)
                 return
-            await menu_shop(query, MenuCB(action="shop"))
+            await menu_shop(query, MenuCB(action="shop", refresh=False))
         else:
             await query.answer("Недостаточно золота!", show_alert=True)
     elif act == "revive":
@@ -3271,12 +3274,13 @@ async def process_shop(query: CallbackQuery, callback_data: ShopCB):
 @dp.callback_query(MenuCB.filter(F.action == "potions"))
 async def menu_potions(query: CallbackQuery, callback_data: MenuCB):
     player = await get_player(query.from_user.id)
-    await update_potion_shop(player)
+    if callback_data.refresh or not player.potion_shop_assortment:
+        await update_potion_shop(player)
 
     t_stats = get_total_stats(player)
     total_adapt = t_stats['adaptability']
 
-    text = f"💰 Золото: {player.gold}\n🧪 <b>Лавка зелий (обновляется каждые 2 мин)</b>\n\nАссортимент:\n"
+    text = f"💰 Золото: {player.gold}\n🧪 <b>Лавка зелий</b>\n\nАссортимент:\n"
 
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     b = InlineKeyboardBuilder()
@@ -3290,10 +3294,7 @@ async def menu_potions(query: CallbackQuery, callback_data: MenuCB):
         base_val = pot["value"]
         pot_type = pot["type"]
 
-        # Текущее финальное значение
         current_val = t_stats[stat]
-
-        # Получаем компоненты для симуляции будущего значения
         base, flat, percent = get_stat_components(player, stat)
 
         unit = '%' if pot_type == 'percent' else ''
@@ -3319,7 +3320,6 @@ async def menu_potions(query: CallbackQuery, callback_data: MenuCB):
         idx += 1
 
     b.adjust(5)
-    # строка с кнопкой обновления удалена
     b.row(InlineKeyboardButton(text="🔙 Назад",
           callback_data=MenuCB(action="profile").pack()))
 
@@ -3360,7 +3360,7 @@ async def process_potions(query: CallbackQuery, callback_data: PotionCB):
             entry["sold"] = True
             await save_player(player)
             await query.answer(f"Вы выпили зелье! {STAT_RU[stat]} увеличен.")
-            await menu_potions(query, MenuCB(action="potions"))
+            await menu_potions(query, MenuCB(action="potions", refresh=False))
         else:
             await query.answer("Недостаточно золота!", show_alert=True)
 
