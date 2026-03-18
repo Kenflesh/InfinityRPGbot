@@ -2359,7 +2359,7 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
         user_locks[user_id] = lock
 
     if lock.locked():
-        await query.answer("⏳ Предыдущий бой ещё обрабатывается, пожалуйста, подождите.", show_alert=True)
+        await query.answer("⏳ Телега размышляет, дай ей секунду... или минуту...")
         return
 
     async with lock:
