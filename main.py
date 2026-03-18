@@ -1502,10 +1502,10 @@ def simulate_combat_realtime(player, enemy):
             mult = 1 + base
             if target_stats is p_stats:
                 p_multipliers[stat] *= mult
-                msg += f"✨ {STAT_RU.get(stat, stat)} увеличен в {mult:.3f} раз (навсегда)"
+                msg += f"✨ {STAT_RU.get(stat, stat)} увеличен в {mult:.3f} раз"
             else:
                 e_multipliers[stat] *= mult
-                msg += f"✨ Враг: {STAT_RU.get(stat, stat)} увеличен в {mult:.3f} раз (навсегда)"
+                msg += f"✨ Враг: {STAT_RU.get(stat, stat)} увеличен в {mult:.3f} раз"
 
         elif eff_type == "debuff":
             mult = 1 - base
@@ -2349,9 +2349,8 @@ def get_item_by_global_index(player, global_idx):
     return None, None, None
 
 def get_spell_emoji(spell):
-    """Возвращает эмодзи, соответствующий основному эффекту заклинания."""
-    # Приоритет типов эффектов (чем выше в списке, тем важнее)
-    priority_map = {
+    """Возвращает строку с эмодзи для всех уникальных типов эффектов заклинания."""
+    emoji_map = {
         "damage": "⚔️",
         "heal": "💚",
         "shield": "🛡️",
@@ -2363,15 +2362,16 @@ def get_spell_emoji(spell):
         "dot": "🔥",
         "hot": "💚"
     }
-    # Собираем все типы эффектов из заклинания
-    types = {eff['type'] for eff in spell.get('effects', [])}
-    if not types:
+    seen = set()
+    emojis = []
+    for eff in spell.get('effects', []):
+        e_type = eff.get('type')
+        if e_type in emoji_map and e_type not in seen:
+            seen.add(e_type)
+            emojis.append(emoji_map[e_type])
+    if not emojis:
         return "❓"
-    # Выбираем первый по приоритету
-    for key in priority_map:
-        if key in types:
-            return priority_map[key]
-    return "✨"
+    return "".join(emojis)
 
 @dp.callback_query(MenuCB.filter(F.action == "train"))
 async def menu_train(query: CallbackQuery, callback_data: MenuCB):
@@ -3769,11 +3769,12 @@ async def menu_spells(query: CallbackQuery, callback_data: MenuCB):
     # Активные слоты
     for i, spell in enumerate(player.active_spells):
         if spell:
-            emoji = get_spell_emoji(spell)
+            emojis = get_spell_emoji(spell)
             arcane = spell.get('arcane', 0)
             arcane_str = f" 🃏{arcane}" if arcane > 0 else ""
-            text += (f"Слот {i+1}: {emoji} <b>{spell['name']}</b>{arcane_str} "
-                     f"(💧 МП: {spell['mp_cost']} | ⏳ КД: {spell['base_cooldown']:.1f}с | Улучшено {spell['upgrades']})\n")
+            mp_cost_display = f"{spell['mp_cost']:.0f}" if isinstance(spell['mp_cost'], (int, float)) and spell['mp_cost'] == int(spell['mp_cost']) else f"{spell['mp_cost']:.1f}"
+            text += (f"Слот {i+1}: {emojis} <b>{spell['name']}</b>{arcane_str} "
+                     f"(💧 МП: {mp_cost_display} | ⏳ КД: {spell['base_cooldown']:.1f}с | Улучшено {spell.get('upgrades', 0)})\n")
             slot_buttons.append(
                 InlineKeyboardButton(
                     text=f"Слот {i+1}",
@@ -3787,12 +3788,13 @@ async def menu_spells(query: CallbackQuery, callback_data: MenuCB):
 
     inv_buttons = []
     for i, spell in enumerate(player.spell_inventory):
-        emoji = get_spell_emoji(spell)
+        emojis = get_spell_emoji(spell)
         passive = " ♾️" if spell.get('is_passive') else ""
         arcane = spell.get('arcane', 0)
         arcane_str = f" 🃏{arcane}" if arcane > 0 else ""
-        text += (f"{i+1}. {emoji} <b>{spell['name']}</b>{passive}{arcane_str} | "
-                 f"💧 МП: {spell['mp_cost']} | ⏳ КД: {spell['base_cooldown']:.1f}с\n")
+        mp_cost_display = f"{spell['mp_cost']:.0f}" if isinstance(spell['mp_cost'], (int, float)) and spell['mp_cost'] == int(spell['mp_cost']) else f"{spell['mp_cost']:.1f}"
+        text += (f"{i+1}. {emojis} <b>{spell['name']}</b>{passive}{arcane_str} | "
+                 f"💧 МП: {mp_cost_display} | ⏳ КД: {spell['base_cooldown']:.1f}с\n")
         inv_buttons.append(
             InlineKeyboardButton(
                 text=f"{i+1}",
