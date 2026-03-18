@@ -855,13 +855,11 @@ def generate_item(item_type, rarity):
         elif item_type == "tome2h":
             raw *= TOME_MULTIPLIER
 
-        integer_stats = ["atk", "def", "max_hp", "max_mp",
-                         "magic_atk", "magic_res", "armor_pen", "m_shield"]
+        #integer_stats = ["atk", "def", "max_hp", "max_mp",
+        #                 "magic_atk", "magic_res", "armor_pen", "m_shield"]
         
-        if stat in integer_stats:
-            base_val = max(0.5, round(raw, 2))
-        else:
-            base_val = max(0.01, round(raw, 2))
+        
+        base_val = max(0.01, round(raw, 2))
 
         # Сохраняем множитель для пересчёта при повышении редкости
         factor = raw / rarity  # raw уже включает все множители, кроме rarity
@@ -2756,11 +2754,11 @@ async def upgrade_item_rarity(query: CallbackQuery, callback_data: ItemCB):
             # Для старых предметов (если вдруг) пропускаем
             continue
         new_base = item['rarity'] * factor
-        integer_stats = ["atk", "def", "max_hp", "max_mp", "magic_atk", "magic_res", "armor_pen", "m_shield"]
-        if stat_key in integer_stats:
-            new_base = max(0.5, round(new_base, 2))
-        else:
-            new_base = max(0.01, round(new_base, 2))
+        #integer_stats = ["atk", "def", "max_hp", "max_mp", "magic_atk", "magic_res", "armor_pen", "m_shield"]
+        #if stat_key in integer_stats:
+        #    new_base = max(0.5, round(new_base, 2))
+        #else:
+        new_base = max(0.01, round(new_base, 2))
         stat_data['base'] = new_base
         stat_data['current'] = new_base * (stat_data.get('upgrades', 0) + 1)
     await save_player(player)
