@@ -3410,7 +3410,7 @@ async def view_spell(query: CallbackQuery, callback_data: SpellCB):
     current_cooldown = spell['base_cooldown'] * ((1 - 0.1 * talent) ** spell.get('cooldown_upgrades', 0))
 
     text = f"✨ <b>{spell['name']}</b>\n"
-    text += f"📖 Описание:\n"
+    text += f"\n📖 Описание:\n"
     for i, eff in enumerate(spell['effects']):
         target = "на себя" if eff['target'] == TARGET_SELF else "на врага"
         line = f"  {i+1}. "
@@ -3452,10 +3452,12 @@ async def view_spell(query: CallbackQuery, callback_data: SpellCB):
 
     # Кнопки для улучшения каждого эффекта
     for i, eff in enumerate(spell['effects']):
+        text += f"\n<i>Улучшения эффекта {i+1}:</i>\n"
         buttons = get_effect_upgrade_buttons(eff, i, idx, -1)
-        for btn in buttons:
-            b.row(btn)
-
+        if buttons:
+            b.row(*buttons)
+            
+    text += f"\n<i>Глобальные улучшения:</i>\n"
     b.row(InlineKeyboardButton(
         text=f"⏱️ Перезарядка -10% (🃏5)",
         callback_data=SpellEffectCB(action="upgrade", spell_idx=idx, effect_idx=-1, param="cooldown", slot=-1).pack()
@@ -3582,10 +3584,12 @@ async def view_active_spell(query: CallbackQuery, callback_data: SpellCB):
 
     # Кнопки для улучшения каждого эффекта
     for i, eff in enumerate(spell['effects']):
+        text += f"\n<i>Улучшения эффекта {i+1}:</i>\n"
         buttons = get_effect_upgrade_buttons(eff, i, -1, slot)
-        for btn in buttons:
-            b.row(btn)
+        if buttons:
+            b.row(*buttons)
 
+    text += f"\n<i>Глобальные улучшения:</i>\n"
     b.row(InlineKeyboardButton(
         text=f"⏱️ Перезарядка -10% (🃏5)",
         callback_data=SpellEffectCB(action="upgrade", spell_idx=-1, effect_idx=-1, param="cooldown", slot=slot).pack()
@@ -3752,7 +3756,7 @@ async def menu_spells(query: CallbackQuery, callback_data: MenuCB):
             arcane = spell.get('arcane', 0)
             arcane_str = f" 🃏{arcane}" if arcane > 0 else ""
             text += (f"Слот {i+1}: {emoji} <b>{spell['name']}</b>{arcane_str} "
-                     f"(МП:{spell['mp_cost']}, КД:{spell['base_cooldown']:.1f}с, улучш.{spell['upgrades']})\n")
+                     f"(💧 МП: {spell['mp_cost']} | ⏳ КД: {spell['base_cooldown']:.1f}с | Улучшено {spell['upgrades']})\n")
             slot_buttons.append(
                 InlineKeyboardButton(
                     text=f"Слот {i+1}",
@@ -3761,7 +3765,6 @@ async def menu_spells(query: CallbackQuery, callback_data: MenuCB):
             )
         else:
             text += f"Слот {i+1}: Пусто\n"
-            # Для пустых слотов кнопку не добавляем
 
     text += f"\n📚 Инвентарь заклинаний ({len(player.spell_inventory)}/20):\n"
 
@@ -3772,7 +3775,7 @@ async def menu_spells(query: CallbackQuery, callback_data: MenuCB):
         arcane = spell.get('arcane', 0)
         arcane_str = f" 🃏{arcane}" if arcane > 0 else ""
         text += (f"{i+1}. {emoji} <b>{spell['name']}</b>{passive}{arcane_str} | "
-                 f"МП:{spell['mp_cost']} | КД:{spell['base_cooldown']:.1f}с\n")
+                 f"💧 МП: {spell['mp_cost']} | ⏳ КД: {spell['base_cooldown']:.1f}с\n")
         inv_buttons.append(
             InlineKeyboardButton(
                 text=f"{i+1}",
