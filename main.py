@@ -50,7 +50,9 @@ SHOP_BASE_PRICE = 150
 ITEM_DROP_CHANCE_FROM_ENEMY = 0.05
 ARCANE_GEOMETRIC_MULT = 0.1
 
-MAX_STATS_PER_ITEM = {"ring": 10}
+MAX_GUARANTEED_STATS = 5
+MAX_STATS_PER_ITEM = {"ring": 12}
+
 TWOHAND_MULTIPLIER = 2.0
 TOME_MULTIPLIER = 5.0
 
@@ -811,36 +813,44 @@ async def leaderboard_updater():
 
 # ===================== ГЕНЕРАЦИЯ ПРЕДМЕТОВ =====================
 
-
 def generate_item_name(item_type):
     prefix = random.choice(PREFIXES)
     noun = random.choice(NOUNS.get(item_type, ["Предмет"]))
     suffix = random.choice(SUFFIXES)
     return f"{prefix} {noun} {suffix}"
 
-
 def generate_item(item_type, rarity):
     name = generate_item_name(item_type)
 
-    max_stats = MAX_STATS_PER_ITEM.get(item_type, 5)
-    stats_count = 1
-    extra_chance = min(0.8, 0.2 * rarity)
-    while random.random() < extra_chance and stats_count < max_stats:
+    # Максимальное количество статов для данного типа предмета (кольца могут иметь больше)
+    max_stats = MAX_STATS_PER_ITEM.get(item_type, 10)
+    stats_count = 1  # минимум один стат
+
+    # Гарантированные статы от целых сотен редкости (не более MAX_GUARANTEED_STATS и не более max_stats-1)
+    total_hundreds = int(rarity // 100)
+    guaranteed_extra = min(MAX_GUARANTEED_STATS, max_stats - 1, total_hundreds)
+    stats_count += guaranteed_extra
+    remaining_rarity = rarity - total_hundreds * 100  # остаток для шанса (всегда < 100)
+
+    # Добавляем случайные статы с убывающей вероятностью, начиная с остатка
+    extra_chance = remaining_rarity / 100.0  # от 0 до 1
+    while stats_count < max_stats and random.random() < extra_chance:
         stats_count += 1
-        extra_chance *= 0.5
+        extra_chance *= 0.5  # шанс на следующий стат падает вдвое
 
     allowed = ITEM_ALLOWED_STATS.get(item_type, [])
     if not allowed:
         allowed = list(STAT_RU.keys())
+    # Выбираем уникальные статы (без повторений)
     chosen_stats = random.sample(allowed, min(stats_count, len(allowed)))
     item_stats = {}
 
     stat_mult = {
         "atk": 0.1, "magic_atk": 0.1, "def": 0.2, "magic_res": 0.2,
-        "max_hp": 0.5, "max_mp": 0.5, "hp_regen": 0.05, "mp_regen": 0.05,
+        "max_hp": 1.0, "max_mp": 1.0, "hp_regen": 0.1, "mp_regen": 0.1,
         "armor_pen": 0.5, "crit_chance": 0.2, "crit_damage": 0.2,
         "accuracy": 0.5, "evasion_rating": 0.25,
-        "atk_spd": 0.005, "lifesteal": 0.005, "thorns": 0.005, "m_shield": 0.5,
+        "atk_spd": 0.005, "lifesteal": 0.005, "thorns": 0.005, "m_shield": 1.0,
         "magic_crit_chance": 0.2, "magic_crit_damage": 0.2, "magic_shield_drain": 0.005
     }
 
@@ -850,26 +860,24 @@ def generate_item(item_type, rarity):
                               "accuracy", "evasion_rating", "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"]
         mult = stat_mult.get(stat, 1.0)
 
+        # Базовое значение зависит от редкости и множителя
         raw = (rarity * 0.25 * random.uniform(0.8, 1.2)) * mult
         if "weapon2h" in item_type:
             raw *= TWOHAND_MULTIPLIER
         elif item_type == "tome2h":
             raw *= TOME_MULTIPLIER
 
-        #integer_stats = ["atk", "def", "max_hp", "max_mp",
-        #                 "magic_atk", "magic_res", "armor_pen", "m_shield"]
-        
-        
-        base_val = max(0.01, round(raw, 2))
+        base_val = round(raw, 3)
 
-        # Сохраняем множитель для пересчёта при повышении редкости
-        factor = raw / rarity  # raw уже включает все множители, кроме rarity
+        # Множитель для пересчёта при повышении редкости
+        factor = raw / rarity if rarity > 0 else 1.0
 
         bonus_type = "flat"
-        if stat in ["atk", "def", "max_hp", "max_mp", "magic_atk", "magic_res", "hp_regen", "mp_regen", "accuracy", "evasion_rating", "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"]:
+        if stat in ["atk", "def", "max_hp", "max_mp", "magic_atk", "magic_res", "hp_regen", "mp_regen", "accuracy", "evasion_rating", 
+                    "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"]:
             bonus_type = random.choice(["flat", "percent"])
 
-        upgrade_price_mult = random.uniform(0.5, 3.0)  # новый диапазон
+        upgrade_price_mult = random.uniform(0.5, 3.0)
 
         item_stats[stat] = {
             "base": base_val,
@@ -886,12 +894,11 @@ def generate_item(item_type, rarity):
         "name": name,
         "item_type": item_type,
         "stats": item_stats,
-        "rarity": rarity,                 # ← новое поле
-        "dust": 0,                         # ← новое поле
-        "battle_count": 0,                  # ← новое поле
+        "rarity": rarity,
+        "dust": 0,
+        "battle_count": 0,
         "sell_price": max(10, int(base_price * 0.25))
     }
-
 
 def generate_potion(difficulty):
     potion_stats = [s for s in STAT_RU.keys() if s not in ["hp", "mp"]]
@@ -1499,9 +1506,9 @@ def simulate_combat_realtime(player, enemy):
 
                             # Накопление аркан
                             spell['arcane_progress'] = spell.get('arcane_progress', 0) + 1
-                            if spell['arcane_progress'] >= 100:
+                            if spell['arcane_progress'] >= 20:
                                 spell['arcane'] = spell.get('arcane', 0) + 1
-                                spell['arcane_progress'] -= 100
+                                spell['arcane_progress'] -= 20
 
                             msg_lines = [f"[{fmt_float(t,6)}с] Вы использовали ✨ {spell['name']}:"]
                             for eff in spell["effects"]:
@@ -3093,7 +3100,7 @@ async def view_spell(query: CallbackQuery, callback_data: SpellCB):
     
     text += f"\n💧 Стоимость маны: {actual_cost}\n"
     text += f"⏱ Перезарядка: {fmt_float(current_cooldown, 5)}с\n"
-    text += f"🔮 Аркан: {spell.get('arcane', 0)} (прогресс: {spell.get('arcane_progress', 0)}/100)\n"
+    text += f"🔮 Аркан: {spell.get('arcane', 0)} (прогресс: {spell.get('arcane_progress', 0)}/20)\n"
     text += f"📈 Всего улучшений: {spell.get('upgrades', 0)}\n"
 
     from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -3223,7 +3230,7 @@ async def view_active_spell(query: CallbackQuery, callback_data: SpellCB):
     text += f"\n💧 Стоимость маны: {actual_cost}\n"
     current_cooldown = spell['base_cooldown'] * ((1 - 0.1 * talent) ** spell.get('cooldown_upgrades', 0))
     text += f"⏱ Перезарядка: {fmt_float(current_cooldown, 5)}с\n"
-    text += f"🔮 Аркан: {spell.get('arcane', 0)} (прогресс: {spell.get('arcane_progress', 0)}/100)\n"
+    text += f"🔮 Аркан: {spell.get('arcane', 0)} (прогресс: {spell.get('arcane_progress', 0)}/20)\n"
     text += f"📈 Всего улучшений: {spell.get('upgrades', 0)}\n"
 
     from aiogram.utils.keyboard import InlineKeyboardBuilder
