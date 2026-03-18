@@ -44,12 +44,15 @@ leaderboard_cache = {
 
 #Константы
 KILLS_TO_UNLOCK_NEXT = 25
+
 GOLD_PER_STAGE = 10
 DUST_PER_BATTLE = 50
 SHOP_BASE_PRICE = 15 * GOLD_PER_STAGE
 ITEM_DROP_CHANCE_FROM_ENEMY = 0.075
 SPELL_DROP_CHANCE = 0.05
 ARCANE_GEOMETRIC_MULT = 0.1
+
+ENEMY_SCALE_GROWTH_PER_LEVEL = 0.05
 
 MAX_GUARANTEED_STATS = 5
 MAX_STATS_COUNT = 10
@@ -362,15 +365,15 @@ CONFIG = {
     },
     #Прибавка к статам противника за каждый новый уровень угрозы, прибавка тоже общая
     "enemy_stat_scale": {
-        "hp": 12,                 
+        "hp": 10,                 
         "atk": 2.5,               
-        "def": 0.8,                
+        "def": 1.0,                
         "m_shield": 5,             
         "magic_atk": 1.0,          
         "magic_res": 0.4,          
         "atk_spd": 0.025,         
-        "accuracy": 0.15,          
-        "evasion_rating": 0.1,     
+        "accuracy": 0.2,          
+        "evasion_rating": 0.2,     
         "crit_chance": 0.1,        
         "crit_damage": 1.0,        
         "lifesteal": 0.05,         
@@ -1299,6 +1302,10 @@ def generate_enemy(difficulty):
     scale_mult = enemy_class.get("scale_mult", base_mult)  # множитель для прироста за уровень
     atk_type = enemy_class.get("atkType", "Physical")
 
+    # Эффективный уровень с учётом дополнительного роста
+    growth = ENEMY_SCALE_GROWTH_PER_LEVEL
+    effective_difficulty = difficulty * (1 + growth * (difficulty - 1))
+
     e_stats = {}
     for stat in ["hp", "atk", "def", "magic_atk", "magic_res", "accuracy", "evasion_rating",
                  "crit_chance", "crit_damage", "lifesteal", "thorns", "hp_regen", "mp_regen",
@@ -1306,7 +1313,7 @@ def generate_enemy(difficulty):
         base = CONFIG["enemy_base_stats"].get(stat, 0)
         scale = CONFIG["enemy_stat_scale"].get(stat, 0)
         # Применяем раздельные множители
-        val = (base * base_mult.get(stat, 1.0)) + (difficulty * scale * scale_mult.get(stat, 1.0))
+        val = (base * base_mult.get(stat, 1.0)) + (effective_difficulty * scale * scale_mult.get(stat, 1.0))
         val = val * strength_mult * variance()
         # Для некоторых статов округление до int
         if stat in ["hp", "atk", "def", "magic_atk", "magic_res", "magic_crit_chance", "magic_crit_damage"]:
@@ -1314,8 +1321,8 @@ def generate_enemy(difficulty):
         else:
             e_stats[stat] = max(0, val)
 
-    e_stats["atk_spd"] = max(0.00, (CONFIG["enemy_base_stats"]["atk_spd"] * base_mult.get("atk_spd", 1.0) + difficulty * CONFIG["enemy_stat_scale"]["atk_spd"] * scale_mult.get("atk_spd", 1.0)) * strength_mult * variance())
-    e_stats["max_mp"] = max(0, int(difficulty * 15))
+    e_stats["atk_spd"] = max(0.00, (CONFIG["enemy_base_stats"]["atk_spd"] * base_mult.get("atk_spd", 1.0) + effective_difficulty * CONFIG["enemy_stat_scale"]["atk_spd"] * scale_mult.get("atk_spd", 1.0)) * strength_mult * variance())
+    e_stats["max_mp"] = max(0, int(effective_difficulty * 15))
     e_stats["mp"] = e_stats["max_mp"]
 
     # Генерация заклинаний (без изменений)
