@@ -1077,7 +1077,7 @@ def generate_single_stat(stat: str, item_type: str, rarity: float):
     if stat in STATS_WITH_PERCENT_OPTION:
         bonus_type = random.choice(["flat", "percent"])
 
-    upgrade_price_mult = random.uniform(0.25, 2.5)
+    upgrade_price_mult = random.uniform(0.25, 1.25)
 
     return {
         "base": base_val,
@@ -2027,7 +2027,7 @@ async def get_item_view_data(player: Player, global_idx: int):
     for stat_key, stat_data in item["stats"].items():
         is_percent = stat_key in PERCENT_STATS
         
-        raw_cost = GOLD_PER_STAGE * 25 * player.max_unlocked_difficulty * stat_data.get('upgrade_price_mult', 1.0)
+        raw_cost = GOLD_PER_STAGE * 20 * player.max_unlocked_difficulty * stat_data.get('upgrade_price_mult', 1.0)
         upg_cost = max(100, int(raw_cost))
         s_ru = f"{STAT_EMOJI.get(stat_key, '')} {STAT_RU.get(stat_key, stat_key)}"
         bonus_type = stat_data.get('bonus_type', 'flat')
