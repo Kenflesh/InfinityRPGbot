@@ -802,7 +802,10 @@ async def background_worker():
 
 async def leaderboard_updater():
     while True:
-        await asyncio.sleep(3600)
+        now = time.time()
+        next_hour = (now // 3600 + 1) * 3600
+        sleep_seconds = next_hour - now
+        await asyncio.sleep(sleep_seconds)
         await update_leaderboard_cache(force=True)
 
 # ===================== ГЕНЕРАЦИЯ ПРЕДМЕТОВ =====================
@@ -1211,7 +1214,28 @@ def simulate_combat_realtime(player, enemy):
         max_hp = target_stats['max_hp']
         shield_part = f" 🪬 {shield:.1f}" if shield > 0 else ""
         return f"| ❤️ {hp:.1f}/{max_hp:.1f}{shield_part}"
-
+    
+    def apply_crit_damage(damage, crit_chance, crit_damage, emoji):
+        """Применяет механику мульти-критов.
+        Возвращает (новый_урон, строка_с_описанием)"""
+        if crit_chance <= 0:
+            return damage, ""
+        crit_mult = crit_damage / 100.0
+        guaranteed = int(crit_chance // 100)          # целые криты
+        extra = crit_chance % 100                     # остаточный шанс
+        total_mult = crit_mult ** guaranteed
+        crit_count = guaranteed
+        if random.random() * 100 < extra:
+            total_mult *= crit_mult
+            crit_count += 1
+        new_damage = damage * total_mult
+        if crit_count == 0:
+            return new_damage, ""
+        elif crit_count == 1:
+            return new_damage, f" {emoji} КРИТ!"
+        else:
+            return new_damage, f" {emoji} КРИТ x{crit_count}!"
+        
     log = [
         f"⚔️ <b>Бой начался!</b>\nУгроза: {enemy['difficulty']}",
         f"👤 <b>Вы:</b> ❤️ {p_stats['hp']:.1f}/{p_stats['max_hp']:.1f} | 🪬 {p_stats['m_shield']:.1f} | 💧 {p_stats['mp']:.1f}/{p_stats['max_mp']:.1f}",
@@ -1502,7 +1526,7 @@ def simulate_combat_realtime(player, enemy):
                         if can_phys:
                             effective_atk = p_stats["atk"] * p_multipliers.get("atk", 1.0)
                             effective_def = e_stats["def"] * e_multipliers.get("def", 1.0)
-                            effective_armor_pen = p_stats["armor_pen"]  # пробитие пока без множителя
+                            effective_armor_pen = p_stats["armor_pen"]
                             effective_def_after_pen = max(0, effective_def - effective_armor_pen)
                             base_phys = effective_atk * effective_atk / (effective_atk + effective_def_after_pen) if effective_atk + effective_def_after_pen > 0 else 0
                             phys_dmg = base_phys * random.uniform(0.8, 1.2)
@@ -1514,19 +1538,21 @@ def simulate_combat_realtime(player, enemy):
 
                         hit = random.random() * 100 > get_evasion_chance(p_stats["accuracy"] * p_multipliers.get("accuracy", 1.0),
                                                                          e_stats["evasion_rating"] * e_multipliers.get("evasion_rating", 1.0))
+                        crit_flag = ""
+                        magic_crit_flag = ""
                         if hit:
                             if can_phys:
-                                if random.random() * 100 < p_stats["crit_chance"] * p_multipliers.get("crit_chance", 1.0):
-                                    phys_dmg *= (p_stats["crit_damage"] * p_multipliers.get("crit_damage", 1.0)) / 100.0
-                                    crit_flag = " 💥 КРИТ!"
+                                phys_crit_chance = p_stats["crit_chance"] * p_multipliers.get("crit_chance", 1.0)
+                                phys_crit_damage = p_stats["crit_damage"] * p_multipliers.get("crit_damage", 1.0)
+                                phys_dmg, crit_flag = apply_crit_damage(phys_dmg, phys_crit_chance, phys_crit_damage, "💥")
                         else:
                             phys_dmg = 0.0
                             missed = True
 
                         if can_magic:
-                            if random.random() * 100 < p_stats["magic_crit_chance"] * p_multipliers.get("magic_crit_chance", 1.0):
-                                magic_dmg *= (p_stats["magic_crit_damage"] * p_multipliers.get("magic_crit_damage", 1.0)) / 100.0
-                                magic_crit_flag = " 💫 КРИТ!"
+                            magic_crit_chance = p_stats["magic_crit_chance"] * p_multipliers.get("magic_crit_chance", 1.0)
+                            magic_crit_damage = p_stats["magic_crit_damage"] * p_multipliers.get("magic_crit_damage", 1.0)
+                            magic_dmg, magic_crit_flag = apply_crit_damage(magic_dmg, magic_crit_chance, magic_crit_damage, "💫")
 
                         total_dmg = phys_dmg + magic_dmg
 
@@ -1603,6 +1629,7 @@ def simulate_combat_realtime(player, enemy):
                             break
 
                 if not spell_used:
+                    # Определяем тип атаки врага и базовый урон
                     if enemy.get('atk_type') == 'Magic':
                         effective_magic_atk = e_stats["magic_atk"] * e_multipliers.get("magic_atk", 1.0)
                         effective_mres = p_stats["magic_res"] * p_multipliers.get("magic_res", 1.0)
@@ -1610,7 +1637,7 @@ def simulate_combat_realtime(player, enemy):
                         dmg = base_dmg * random.uniform(0.8, 1.2)
                         crit_chance = e_stats.get("magic_crit_chance", 0) * e_multipliers.get("magic_crit_chance", 1.0)
                         crit_damage = e_stats.get("magic_crit_damage", 150) * e_multipliers.get("magic_crit_damage", 1.0)
-                        crit_flag = " 💫 КРИТ!"
+                        emoji = "💫"
                     else:
                         effective_atk = e_stats["atk"] * e_multipliers.get("atk", 1.0)
                         effective_def = p_stats["def"] * p_multipliers.get("def", 1.0)
@@ -1618,21 +1645,22 @@ def simulate_combat_realtime(player, enemy):
                         dmg = base_dmg * random.uniform(0.8, 1.2)
                         crit_chance = e_stats["crit_chance"] * e_multipliers.get("crit_chance", 1.0)
                         crit_damage = e_stats["crit_damage"] * e_multipliers.get("crit_damage", 1.0)
-                        crit_flag = " 💥 КРИТ!"
+                        emoji = "💥"
 
+                    # Проверка на уклонение
                     if random.random() * 100 > get_evasion_chance(e_stats["accuracy"] * e_multipliers.get("accuracy", 1.0),
-                                                                 p_stats["evasion_rating"] * p_multipliers.get("evasion_rating", 1.0)):
-                        if random.random() * 100 < crit_chance:
-                            dmg *= crit_damage / 100.0
-                        else:
-                            crit_flag = ""
+                                                                 p_stats["evasion_rating"] * e_multipliers.get("evasion_rating", 1.0)):
+                        # Применяем криты
+                        dmg, crit_flag = apply_crit_damage(dmg, crit_chance, crit_damage, emoji)
 
+                        # Поглощение щитом
                         absorbed = 0.0
                         if current_shield > 0:
                             absorbed = min(dmg, current_shield)
                             current_shield -= absorbed
                             dmg -= absorbed
 
+                        # Нанесение урона
                         if dmg > 0:
                             p_stats["hp"] -= dmg
                             msg = f"[{fmt_float(t,6)}с] 😡 Враг нанёс вам{crit_flag} {dmg:.1f} урона"
@@ -1641,6 +1669,7 @@ def simulate_combat_realtime(player, enemy):
                         if absorbed > 0:
                             msg += f" (поглощено {absorbed:.1f})"
 
+                        # Вампиризм врага
                         if dmg > 0 and e_stats["lifesteal"] > 0:
                             heal = dmg * (e_stats["lifesteal"] / 100.0)
                             if heal > 0:
@@ -1650,6 +1679,7 @@ def simulate_combat_realtime(player, enemy):
                         msg += f" {status_str(p_stats, current_shield, True)}"
                         log.append(msg)
 
+                        # Шипы игрока
                         if p_stats["thorns"] > 0 and dmg > 0:
                             th = dmg * (p_stats["thorns"] / 100.0)
                             if enemy_shield > 0:
@@ -1813,7 +1843,7 @@ async def cmd_start(message: Message):
         username=message.from_user.username
     )
     await message.answer(
-        f"Добро пожаловать, <b>{player.name}</b>!\nТвоя сила ограничивается только временем.",
+        f"Добро пожаловать, <b>{player.name}</b>!\n\nНе бойся поражений, твоя сила ограничивается только временем и твоим собственным желанием.\n\nЕсли у тебя есть какие-то вопросы, жми /guide",
         reply_markup=main_menu_kbd()
     )
 
@@ -1848,7 +1878,7 @@ async def cmd_leaderboard(message: Message):
                     text += f"Ваше место: {position}. {name} {username_str} — Угроза {diff}"
                     break
     else:
-        text += "Вы еще не начинали играть? Напишите /start"
+        text += "Вы еще не начинали играть?\n\nНапишите /start в @InfinitRPGbot"
     await message.answer(text)
 
 @dp.message(Command("profile"))
@@ -1906,7 +1936,7 @@ async def cmd_profile(message: Message):
 
 @dp.message(Command("guide"))
 async def cmd_guide(message: Message):
-    text = 'Гайд по игре будет <a href="https://google.com">ЗДЕСЬ</a>'
+    text = 'Гайд по игре будет <a href="https://telegra.ph/Infinity-RPG-03-18">ЗДЕСЬ</a>'
     await message.answer(text, parse_mode=ParseMode.HTML)
 
 @dp.message(Command("relive"))
@@ -1958,6 +1988,13 @@ async def cmd_give_gold(message: Message):
     await save_player(player)
     await message.answer(f"💰 Вам начислено {amount} золота. Теперь у вас {player.gold} золота.")
 
+@dp.message(Command("update_leaderboard"))
+async def cmd_update_leaderboard(message: Message):
+    if message.from_user.id != 812357068:
+        await message.answer("⛔ Эта команда доступна только разработчику.")
+        return
+    await update_leaderboard_cache(force=True)
+    await message.answer("✅ Кэш лидерборда принудительно обновлён.")
 
 @dp.callback_query(ActionCB.filter(F.action == "cancel"))
 async def cb_cancel(query: CallbackQuery, callback_data: ActionCB):
@@ -2830,15 +2867,15 @@ async def menu_shop(query: CallbackQuery, callback_data: MenuCB):
     for original_idx, entry in items_with_idx:
         it = entry["item"]
         item_type_ru = ITEM_TYPE_RU.get(it['item_type'], it['item_type'])
-        stat_desc = "\n'".join(
+        stat_desc = "\n".join(
             [f"{STAT_EMOJI.get(k, '')}{STAT_RU.get(k, k)}: {fmt_float(v['base'], 3)}" for k, v in it['stats'].items()])
         price = entry["price"]
-        text += f"\n{btn_num}. [{item_type_ru}] {it['name']}:\n{stat_desc}\n         Стоимость: 💰 {price}\n"
+        text += f"\n{btn_num}. [{item_type_ru}] {it['name']}:\n{stat_desc}\nСтоимость: 💰 {price}\n"
         b.button(text=f"{btn_num}", callback_data=ShopCB(
             action="buy_it", idx=original_idx).pack())
         btn_num += 1
 
-    b.adjust(3)
+    b.adjust(5)
     b.row(InlineKeyboardButton(text="🔙 Назад",
           callback_data=MenuCB(action="profile").pack()))
 
