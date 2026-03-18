@@ -2125,13 +2125,22 @@ def get_stat_components(player, stat):
     return base, flat, percent
 
 def get_item_by_global_index(player, global_idx):
-    """Возвращает (item, is_equip, slot_or_inv_idx) по глобальному индексу."""
-    # Экипированные предметы
-    for slot, item in player.equip.items():
+    # Экипированные предметы в фиксированном порядке (как в menu_inv)
+    order = ["right_hand", "left_hand", "helmet", "robe", "belt", "boots", "amulet", "ring1", "ring2"]
+    for slot in order:
+        item = player.equip.get(slot)
         if item:
             if global_idx == 0:
                 return item, True, slot
             global_idx -= 1
+
+    # Предметы в инвентаре
+    for inv_idx, item in enumerate(player.inventory):
+        if global_idx == 0:
+            return item, False, inv_idx
+        global_idx -= 1
+
+    return None, None, None
 
     # Предметы в инвентаре
     for inv_idx, item in enumerate(player.inventory):
