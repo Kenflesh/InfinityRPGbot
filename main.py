@@ -1136,7 +1136,7 @@ async def update_potion_shop(player, force=False):
     now = time.time()
     if force or now - player.potion_shop_last_update > CONFIG["time_potion_update"]:
         player.potion_shop_assortment = []
-        for _ in range(5):
+        for _ in range(10):
             player.potion_shop_assortment.append(
                 {"potion": generate_potion(player.max_unlocked_difficulty), "sold": False})
         player.potion_shop_last_update = now
@@ -2962,7 +2962,7 @@ async def menu_potions(query: CallbackQuery, callback_data: MenuCB):
         b.button(text=f"{idx}", callback_data=PotionCB(action="buy", idx=i).pack())
         idx += 1
 
-    b.adjust(3)
+    b.adjust(5)
     # строка с кнопкой обновления удалена
     b.row(InlineKeyboardButton(text="🔙 Назад",
           callback_data=MenuCB(action="profile").pack()))
