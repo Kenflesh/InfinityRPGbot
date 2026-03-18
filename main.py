@@ -57,6 +57,7 @@ TWOHAND_MULTIPLIER = 2.0
 TOME_MULTIPLIER = 5.0
 
 # ===================== СТАТЫ =====================
+#Названия статов на русском
 STAT_RU = {
     "adaptability": "Адаптивность",
     "max_hp": "Макс. Здоровье", "hp": "Здоровье", "max_mp": "Макс. Мана", "mp": "Мана",
@@ -75,6 +76,7 @@ STAT_RU = {
     "effect_resistance": "Сопр. эффектам"
 }
 
+#Смайлики для отображения каждого из статов
 STAT_EMOJI = {
     "max_hp": "❤️", "hp": "❤️", "max_mp": "💧", "mp": "💧",
     "atk": "🗡️", "def": "🛡️", "m_shield": "🪬",
@@ -85,6 +87,7 @@ STAT_EMOJI = {
     "magic_crit_chance": "✨", "magic_crit_damage": "💫", "magic_shield_drain": "🔋", "effect_resistance":"🧿"
 }
 
+#Название типов предметов на русском
 ITEM_TYPE_RU = {
     "weapon1h_physical": "⚔️ Одноручное физ.",
     "weapon1h_magical": "🪄 Одноручное маг.",
@@ -101,6 +104,7 @@ ITEM_TYPE_RU = {
     "ring": "💍 Кольцо"
 }
 
+#Названия слотов на русском
 SLOT_RU = {
     "right_hand": "✋ Правая рука",
     "left_hand": "🤚 Левая рука",
@@ -113,6 +117,7 @@ SLOT_RU = {
     "ring2": "💍 Кольцо 2"
 }
 
+#Кол-во статов получаемых за 1 тренировку
 TRAINING_INCREMENTS = {
     "adaptability": 0.005,
     "max_hp": 3.0,
@@ -143,15 +148,19 @@ TRAINING_INCREMENTS = {
 }
 
 # ===================== СЛОТЫ И ПРЕДМЕТЫ =====================
+
+#Слоты, в которые можно что-то положить
 EQUIP_SLOTS = [
     "right_hand", "left_hand", "boots", "belt", "robe", "helmet", "amulet", "ring1", "ring2"
 ]
 
+#Все типы предметов в игре
 ITEM_TYPES = [
     "weapon1h_physical", "weapon1h_magical", "weapon2h_physical", "weapon2h_magical",
     "shield", "tome", "tome2h", "boots", "belt", "robe", "helmet", "amulet", "ring"
 ]
 
+#Словарь, говорящий какой тип предмета в какие слоты можно положить
 ITEM_TYPE_TO_SLOTS = {
     "weapon1h_physical": ["right_hand", "left_hand"],
     "weapon1h_magical": ["right_hand", "left_hand"],
@@ -168,6 +177,7 @@ ITEM_TYPE_TO_SLOTS = {
     "ring": ["ring1", "ring2"]
 }
 
+#сколько рук требуется предметам (нужно для двуруков и оружий)
 ITEM_HANDS_USED = {
     "weapon1h_physical": 1,
     "weapon1h_magical": 1,
@@ -184,6 +194,7 @@ ITEM_HANDS_USED = {
     "ring": 0
 }
 
+#Какие статы для каких предметов разрешены
 ITEM_ALLOWED_STATS = {
     "weapon1h_physical": ["atk", "atk_spd", "crit_chance", "crit_damage", "armor_pen", "accuracy", "lifesteal"],
     "weapon1h_magical": ["magic_atk", "atk_spd", "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"],
@@ -203,6 +214,34 @@ ITEM_ALLOWED_STATS = {
              "crit_chance", "crit_damage", "accuracy", "evasion_rating", "lifesteal", "armor_pen", "thorns", "m_shield",
              "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"]
 }
+
+#Множитель, на который умножаются статы предметов, чтобы не быть слишком большими
+STAT_BASE_ITEM_MULTIPLIERS = {
+    "atk": 0.1, "magic_atk": 0.1, "def": 0.2, "magic_res": 0.2,
+    "max_hp": 1.0, "max_mp": 1.0, "hp_regen": 0.1, "mp_regen": 0.1,
+    "armor_pen": 0.5, "crit_chance": 0.2, "crit_damage": 0.2,
+    "accuracy": 0.5, "evasion_rating": 0.25,
+    "atk_spd": 0.005, "lifesteal": 0.005, "thorns": 0.005, "m_shield": 1.0,
+    "magic_crit_chance": 0.2, "magic_crit_damage": 0.2, "magic_shield_drain": 0.005
+}
+
+#Статы, которые отображаются как проценты и работают как проценты, чтобы подбирать немного другие формулы и давать игре понимание как с этим работать
+PERCENT_STATS = {
+    "crit_chance", "crit_damage", "atk_spd", "gold_mult", "lifesteal", "thorns",
+    "accuracy", "evasion_rating", "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"
+}
+
+#множество статов, для которых при генерации может случайно выпасть процентный тип бонуса (bonus_type = "percent")
+STATS_WITH_PERCENT_OPTION = {
+    "atk", "def", "max_hp", "max_mp", "magic_atk", "magic_res", "hp_regen", "mp_regen",
+    "accuracy", "evasion_rating", "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"
+}
+
+#В каком порядке отображаются слоты в инвентаре и других местах
+EQUIP_ORDER = ["right_hand", "left_hand", "helmet", "robe", "belt", "boots", "amulet", "ring1", "ring2"]
+
+PHYSICAL_WEAPON_TYPES = {"weapon1h_physical", "weapon2h_physical"}
+MAGICAL_WEAPON_TYPES = {"weapon1h_magical", "weapon2h_magical"}
 
 PREFIXES = [
     "Свирепый", "Древний", "Пылающий", "Забытый", "Проклятый", "Святой", "Теневой", "Искрящийся",
@@ -230,7 +269,64 @@ SUFFIXES = [
     "Стойкости", "Могущества", "Проклятия", "Благословения", "Тайны"
 ]
 
+
+
+# ===================== КОНФИГ БАЛАНСА =====================
+CONFIG = {
+    "time_train": 10,
+    "time_death": 600,
+    "time_expedition": 1200,
+    "time_shop_update": 300,
+    "time_potion_update": 120,
+    
+    #Базовые статы для всех противников на 1 уровне угрозы
+    "enemy_base_stats": {
+        "hp": 10,
+        "atk": 2.5,                 
+        "def": 0,
+        "m_shield": 5,
+        "magic_atk": 1,
+        "magic_res": 1,
+        "atk_spd": 0.1,
+        "accuracy": 10,
+        "evasion_rating": 2,
+        "crit_chance": 1.0,        
+        "crit_damage": 150.0,
+        "lifesteal": 0.05,
+        "thorns": 0.5,             
+        "magic_crit_chance": 0.5,   
+        "magic_crit_damage": 150.0,
+        "magic_shield_drain": 0.2,   
+        "hp_regen": 2.0,      
+        "mp_regen": 2.0,
+        "effect_resistance": 0,        
+    },
+    #Прибавка к статам противника за каждый новый уровень угрозы, прибавка тоже общая
+    "enemy_stat_scale": {
+        "hp": 12,                 
+        "atk": 2.5,               
+        "def": 0.8,                
+        "m_shield": 5,             
+        "magic_atk": 1.0,          
+        "magic_res": 0.4,          
+        "atk_spd": 0.025,         
+        "accuracy": 0.3,          
+        "evasion_rating": 0.1,     
+        "crit_chance": 0.3,        
+        "crit_damage": 3.0,        
+        "lifesteal": 0.05,         
+        "thorns": 0.25,            
+        "magic_crit_chance": 0.3,  
+        "magic_crit_damage": 1.0,  
+        "magic_shield_drain": 0.1,
+        "hp_regen": 0.25,      
+        "mp_regen": 0.25,
+        "effect_resistance": 0.1
+    }
+}
+
 # ===================== КЛАССЫ ВРАГОВ =====================
+# Множитель статов у врагов, чтобы регулировать их прирост статов относительно их класса или убирать ненужные им в классе статы.
 # ВАЖНЫЕ УСЛОВИЯ:
 # thorns есть только у класса thorn
 # lifesteal есть только у класса vampire
@@ -265,7 +361,7 @@ ENEMY_CLASSES = {
         "name": "Маг",
         "atkType": "Magic",
         "mult": {
-            "hp": 0.4,
+            "hp": 0.25,
             "m_shield": 1.5,
             "magic_atk": 1.5,
             "magic_res": 1.2,
@@ -315,7 +411,7 @@ ENEMY_CLASSES = {
         "name": "Танк",
         "atkType": "Physical",
         "mult": {
-            "hp": 2.5,
+            "hp": 2.25,
             "atk": 1.0,
             "magic_atk": 0.0,
             "def": 2.0,
@@ -376,7 +472,7 @@ ENEMY_CLASSES = {
             "evasion_rating": 1.0,
             "crit_chance": 1.0,
             "crit_damage": 1.0,
-            "lifesteal": 0.5,
+            "lifesteal": 1.0,
             "thorns": 0.0,
             "magic_crit_chance": 0.5,
             "magic_crit_damage": 1.0,
@@ -413,70 +509,22 @@ ENEMY_CLASSES = {
     }
 }
 
-# ===================== КОНФИГ БАЛАНСА =====================
-CONFIG = {
-    "time_train": 10,
-    "time_death": 600,
-    "time_expedition": 1200,
-    "time_shop_update": 300,
-    "time_potion_update": 120,
-
-    "enemy_base_stats": {
-        "hp": 10,
-        "atk": 2.5,                 
-        "def": 0,
-        "m_shield": 2,
-        "magic_atk": 1,
-        "magic_res": 1,
-        "atk_spd": 0.1,
-        "accuracy": 10,
-        "evasion_rating": 2,
-        "crit_chance": 1.0,        
-        "crit_damage": 150.0,
-        "lifesteal": 0.05,
-        "thorns": 0.5,             
-        "magic_crit_chance": 0.5,   
-        "magic_crit_damage": 150.0,
-        "magic_shield_drain": 0.2,   
-        "hp_regen": 5.0,      
-        "mp_regen": 5.0,
-        "effect_resistance": 0,        
-    },
-    "enemy_stat_scale": {
-        "hp": 12,                 
-        "atk": 2.5,               
-        "def": 0.8,                
-        "m_shield": 4,             
-        "magic_atk": 1.0,          
-        "magic_res": 0.4,          
-        "atk_spd": 0.025,         
-        "accuracy": 0.3,          
-        "evasion_rating": 0.1,     
-        "crit_chance": 0.3,        
-        "crit_damage": 3.0,        
-        "lifesteal": 0.05,         
-        "thorns": 0.25,            
-        "magic_crit_chance": 0.3,  
-        "magic_crit_damage": 1.0,  
-        "magic_shield_drain": 0.1,
-        "hp_regen": 5.0,      
-        "mp_regen": 5.0,
-        "effect_resistance": 0.1
-    }
-}
-
 # ===================== КОНСТАНТЫ МАГИИ =====================
+#Все типы эффектов у скиллов в игре
 SPELL_EFFECT_TYPES = [
     "damage", "heal", "dot", "hot", "buff", "debuff", "shield",
     "time_stop", "mp_restore", "mp_burn"
 ]
 TARGET_SELF = "self"
 TARGET_ENEMY = "enemy"
+#Закос на будущее, который сейчас не реализован
 PASSIVE_TRIGGERS = ["on_hit", "on_attack", "low_hp", "low_mp", "on_spell_cast"]
 BASE_SPELL_COOLDOWN = 5.0
 MAX_EFFECTS_PER_SPELL = 5
-# для генерации нескольких эффектов
+#Шансы что сгенерируется несколько эффектов у скилла, 1 = 100%, на второй шанс 10%, на третий 1% и так до 5
 EFFECT_CHANCE_CHAIN = [1.0, 0.1, 0.01, 0.001, 0.0001]
+
+CANCELABLE_STATES = {"training", "expedition"}
 
 # ===================== FSM СОСТОЯНИЯ =====================
 
@@ -901,53 +949,45 @@ def generate_item(item_type, rarity):
     allowed = ITEM_ALLOWED_STATS.get(item_type, [])
     if not allowed:
         allowed = list(STAT_RU.keys())
-    # Выбираем уникальные статы (без повторений)
-    chosen_stats = random.sample(allowed, min(stats_count, len(allowed)))
+
+    # Определяем гарантированный стат для оружия
+    guaranteed_stat = None
+    if item_type in PHYSICAL_WEAPON_TYPES:
+        guaranteed_stat = 'atk'
+    elif item_type in MAGICAL_WEAPON_TYPES:
+        guaranteed_stat = 'magic_atk'
+
+    # Ограничиваем stats_count количеством доступных статов
+    max_available = len(allowed)
+    if stats_count > max_available:
+        stats_count = max_available
+
+    # Формируем список выбранных статов
+    if guaranteed_stat and guaranteed_stat in allowed:
+        # Убираем гарантированный из списка для выбора остальных
+        other_allowed = [s for s in allowed if s != guaranteed_stat]
+        # Количество остальных статов (не считая гарантированного)
+        num_others = min(stats_count - 1, len(other_allowed))
+        if num_others > 0:
+            other_stats = random.sample(other_allowed, num_others)
+        else:
+            other_stats = []
+        chosen_stats = [guaranteed_stat] + other_stats
+    else:
+        # Для не-оружия или если гарантированный по какой-то причине отсутствует
+        chosen_stats = random.sample(allowed, min(stats_count, len(allowed)))
+
     item_stats = {}
 
-    stat_mult = {
-        "atk": 0.1, "magic_atk": 0.1, "def": 0.2, "magic_res": 0.2,
-        "max_hp": 1.0, "max_mp": 1.0, "hp_regen": 0.1, "mp_regen": 0.1,
-        "armor_pen": 0.5, "crit_chance": 0.2, "crit_damage": 0.2,
-        "accuracy": 0.5, "evasion_rating": 0.25,
-        "atk_spd": 0.005, "lifesteal": 0.005, "thorns": 0.005, "m_shield": 1.0,
-        "magic_crit_chance": 0.2, "magic_crit_damage": 0.2, "magic_shield_drain": 0.005
-    }
+    stat_mult = STAT_BASE_ITEM_MULTIPLIERS
 
     base_price = 0
     for stat in chosen_stats:
-        is_percent = stat in ["crit_chance", "crit_damage", "atk_spd", "gold_mult", "lifesteal", "thorns",
-                              "accuracy", "evasion_rating", "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"]
-        mult = stat_mult.get(stat, 1.0)
-
-        # Базовое значение зависит от редкости и множителя
-        raw = (rarity * 0.25 * random.uniform(0.8, 1.2)) * mult
-        if "weapon2h" in item_type:
-            raw *= TWOHAND_MULTIPLIER
-        elif item_type == "tome2h":
-            raw *= TOME_MULTIPLIER
-
-        base_val = round(raw, 3)
-
-        # Множитель для пересчёта при повышении редкости
-        factor = raw / rarity if rarity > 0 else 1.0
-
-        bonus_type = "flat"
-        if stat in ["atk", "def", "max_hp", "max_mp", "magic_atk", "magic_res", "hp_regen", "mp_regen", "accuracy", "evasion_rating", 
-                    "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"]:
-            bonus_type = random.choice(["flat", "percent"])
-
-        upgrade_price_mult = random.uniform(0.25, 2.5)
-
-        item_stats[stat] = {
-            "base": base_val,
-            "current": base_val,
-            "upgrades": 0,
-            "bonus_type": bonus_type,
-            "upgrade_price_mult": upgrade_price_mult,
-            "factor": factor
-        }
-        base_price += int(base_val * (100 if is_percent else 10))
+        #is_percent = stat in PERCENT_STATS - Я не знаю надо ли это писать с методом ниже
+        
+        stat_data = generate_single_stat(stat, item_type, rarity)
+        item_stats[stat] = stat_data
+        base_price += int(stat_data["base"] * (100 if stat in PERCENT_STATS else 10))
 
     return {
         "id": "i_" + str(time.time()).replace(".", "") + str(random.randint(10, 99)),
@@ -958,6 +998,34 @@ def generate_item(item_type, rarity):
         "dust": 0,
         "battle_count": 0,
         "sell_price": max(10, int(base_price * 0.25))
+    }
+
+def generate_single_stat(stat: str, item_type: str, rarity: float):
+    stat_mult = STAT_BASE_ITEM_MULTIPLIERS
+    mult = stat_mult.get(stat, 1.0)
+
+    raw = (rarity * 0.25 * random.uniform(0.8, 1.2)) * mult
+    if "weapon2h" in item_type:
+        raw *= TWOHAND_MULTIPLIER
+    elif item_type == "tome2h":
+        raw *= TOME_MULTIPLIER
+
+    base_val = round(raw, 3)
+    factor = raw / rarity if rarity > 0 else 1.0
+
+    bonus_type = "flat"
+    if stat in STATS_WITH_PERCENT_OPTION:
+        bonus_type = random.choice(["flat", "percent"])
+
+    upgrade_price_mult = random.uniform(0.25, 2.5)
+
+    return {
+        "base": base_val,
+        "current": base_val,
+        "upgrades": 0,
+        "bonus_type": bonus_type,
+        "upgrade_price_mult": upgrade_price_mult,
+        "factor": factor
     }
 
 def generate_potion(difficulty):
@@ -1860,7 +1928,6 @@ async def safe_edit(message: Message, text: str, reply_markup: InlineKeyboardMar
 
 # ===================== ПРОСМОТР ПРЕДМЕТА (без изменений, но добавим новые статы в описание) =====================
 
-
 async def get_item_view_data(player: Player, global_idx: int):
     item, is_equip, slot_or_idx = get_item_by_global_index(player, global_idx)
     if not item:
@@ -1878,9 +1945,10 @@ async def get_item_view_data(player: Player, global_idx: int):
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     b = InlineKeyboardBuilder()
 
+    # Кнопки для каждого стата (пара: улучшить и сбросить)
     for stat_key, stat_data in item["stats"].items():
-        is_percent = stat_key in ["crit_chance", "crit_damage", "atk_spd", "gold_mult", "luck", "lifesteal", "thorns",
-                                   "accuracy", "evasion_rating", "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"]
+        is_percent = stat_key in PERCENT_STATS
+        
         raw_cost = GOLD_PER_STAGE * 25 * player.max_unlocked_difficulty * stat_data.get('upgrade_price_mult', 1.0)
         upg_cost = max(100, int(raw_cost))
         s_ru = f"{STAT_EMOJI.get(stat_key, '')} {STAT_RU.get(stat_key, stat_key)}"
@@ -1888,11 +1956,16 @@ async def get_item_view_data(player: Player, global_idx: int):
         bonus_symbol = '%' if bonus_type == 'percent' else ''
         curr_str = fmt_float(stat_data['current'], 4)
         base_str = fmt_float(stat_data['base'], 4)
-        text += f"• {s_ru}: {curr_str}{bonus_symbol} (база {base_str}{bonus_symbol}, улучшений {stat_data['upgrades']})\n         Улучшить: 💰 {upg_cost} (+{base_str}{bonus_symbol})\n"
-        b.button(text=f"Улучшить {s_ru}", callback_data=ItemCB(action="upg", idx=global_idx, stat=stat_key).pack())
+        text += f"• {s_ru}: {curr_str}{bonus_symbol} (база {base_str}{bonus_symbol}, улучшений {stat_data['upgrades']})\n"
+        text += f"         Улучшить: 💰 {upg_cost} (+{base_str}{bonus_symbol})\n"
 
-    b.adjust(1)
-    
+        # Кнопки для этого стата
+        b.button(text="⬆️", callback_data=ItemCB(action="upg", idx=global_idx, stat=stat_key).pack())
+        b.button(text="🎲 Сброс", callback_data=ItemCB(action="reroll", idx=global_idx, stat=stat_key).pack())
+
+    # Располагаем кнопки по две в ряд
+    b.adjust(2)
+
     dust = item.get('dust', 0)
     battle_count = item.get('battle_count', 0)
     text += f"\n🔮 Пыль душ: {dust} | Боёв: {battle_count}/{DUST_PER_BATTLE}\n"
@@ -2082,7 +2155,7 @@ async def cmd_update_leaderboard(message: Message):
 @dp.callback_query(ActionCB.filter(F.action == "cancel"))
 async def cb_cancel(query: CallbackQuery, callback_data: ActionCB):
     player = await get_player(query.from_user.id)
-    if player.state in ['training', 'expedition']:
+    if player.state in CANCELABLE_STATES:
         player.state = 'idle'
         player.state_end_time = 0
         player.training_stat = None
@@ -2122,7 +2195,7 @@ async def process_any_callback(query: CallbackQuery, bot: Bot):
     # Разрешённые префиксы callback_data, которые можно выполнять даже при не-idle состоянии
     allowed_prefixes = (
         'menu:', 'it:', 'spell:', 'cbtstats:', 'sellmass:',
-        'shop:', 'pot:', 'eqchoice:', 'act:', 'hunt:'
+        'sh:', 'pot:', 'eqchoice:', 'act:', 'hunt:'
     )
     if query.data and any(query.data.startswith(p) for p in allowed_prefixes):
         # Пропускаем дальше, позволяя другим обработчикам сработать
@@ -2197,7 +2270,7 @@ def get_stat_components(player, stat):
 
 def get_item_by_global_index(player, global_idx):
     # Экипированные предметы в фиксированном порядке (как в menu_inv)
-    order = ["right_hand", "left_hand", "helmet", "robe", "belt", "boots", "amulet", "ring1", "ring2"]
+    order = EQUIP_ORDER
     for slot in order:
         item = player.equip.get(slot)
         if item:
@@ -2269,6 +2342,15 @@ async def menu_train(query: CallbackQuery, callback_data: MenuCB):
 @dp.callback_query(TrainCB.filter())
 async def process_train(query: CallbackQuery, callback_data: TrainCB):
     player = await get_player(query.from_user.id)
+    
+    # Проверка, что игрок жив и не занят
+    if player.state != 'idle':
+        if player.state == 'dead':
+            await query.answer("💀 Вы мертвы и не можете тренироваться.", show_alert=True)
+        else:
+            await query.answer("⏳ Вы сейчас заняты другим делом.", show_alert=True)
+        return
+    
     stat = callback_data.stat
 
     # Текущее финальное значение
@@ -2560,7 +2642,7 @@ async def menu_inv(query: CallbackQuery, callback_data: MenuCB):
     all_items = []
     btn_index = 0
 
-    order = ["right_hand", "left_hand", "helmet", "robe", "belt", "boots", "amulet", "ring1", "ring2"]
+    order = EQUIP_ORDER
     for slot in order:
         item = player.equip.get(slot)
         slot_name = SLOT_RU.get(slot, slot)
@@ -2817,6 +2899,80 @@ async def upg_item(query: CallbackQuery, callback_data: ItemCB):
     else:
         await query.answer("Недостаточно золота!", show_alert=True)
 
+def recalc_sell_price(item):
+    base_price = 0
+    for st, st_data in item["stats"].items():
+        is_perc = st in PERCENT_STATS
+        base_price += int(st_data["base"] * (100 if is_perc else 10))
+    item["sell_price"] = max(10, int(base_price * 0.25))
+
+@dp.callback_query(ItemCB.filter(F.action == "reroll"))
+async def reroll_item(query: CallbackQuery, callback_data: ItemCB):
+    player = await get_player(query.from_user.id)
+    global_idx = callback_data.idx
+    old_stat_key = callback_data.stat
+
+    item, is_equip, slot_or_idx = get_item_by_global_index(player, global_idx)
+    if not item:
+        await query.answer("Предмет не найден!")
+        return
+
+    dust = item.get('dust', 0)
+    if dust < 1:
+        await query.answer("Недостаточно пыли душ!", show_alert=True)
+        return
+
+    rarity = item['rarity']
+    item_type = item['item_type']
+
+    # Определяем, является ли стат гарантированным для оружия
+    is_guaranteed = False
+    if item_type in PHYSICAL_WEAPON_TYPES and old_stat_key == 'atk':
+        is_guaranteed = True
+    elif item_type in MAGICAL_WEAPON_TYPES and old_stat_key == 'magic_atk':
+        is_guaranteed = True
+
+    if is_guaranteed:
+        # Перегенерируем этот же стат
+        new_stat_key = old_stat_key
+    else:
+        # Ищем доступные другие статы
+        allowed_all = ITEM_ALLOWED_STATS.get(item_type, [])
+        if not allowed_all:
+            allowed_all = list(STAT_RU.keys())
+        current_stats = set(item['stats'].keys())
+        current_stats.discard(old_stat_key)
+        available = [s for s in allowed_all if s not in current_stats]
+        if not available:
+            await query.answer("Нет других доступных статов для этого предмета!", show_alert=True)
+            return
+        new_stat_key = random.choice(available)
+
+    # Генерируем новый стат
+    new_stat_data = generate_single_stat(new_stat_key, item_type, rarity)
+
+    # Удаляем старый стат и добавляем новый (даже если ключ тот же)
+    del item['stats'][old_stat_key]
+    item['stats'][new_stat_key] = new_stat_data
+
+    # Пересчитываем sell_price
+    recalc_sell_price(item)
+
+    # Тратим пыль
+    item['dust'] = dust - 1
+
+    await save_player(player)
+
+    await query.answer(f"Стат изменён на {STAT_RU.get(new_stat_key, new_stat_key)}!")
+
+    # Обновляем отображение предмета
+    updated_player = await get_player(query.from_user.id)
+    text, reply_markup = await get_item_view_data(updated_player, global_idx)
+    if text:
+        await safe_edit(query.message, text, reply_markup)
+    else:
+        await menu_inv(query, MenuCB(action="inv"))
+
 @dp.callback_query(ItemCB.filter(F.action == "upgrade_rarity"))
 async def upgrade_item_rarity(query: CallbackQuery, callback_data: ItemCB):
     player = await get_player(query.from_user.id)
@@ -2848,6 +3004,9 @@ async def upgrade_item_rarity(query: CallbackQuery, callback_data: ItemCB):
         new_base = max(0.01, round(new_base, 2))
         stat_data['base'] = new_base
         stat_data['current'] = new_base * (stat_data.get('upgrades', 0) + 1)
+    
+    recalc_sell_price(item)
+    
     await save_player(player)
     
     updated_player = await get_player(query.from_user.id)
@@ -2964,6 +3123,15 @@ async def menu_shop(query: CallbackQuery, callback_data: MenuCB):
         btn_num += 1
 
     b.adjust(5)
+    
+    if player.state == 'dead':
+        cost = GOLD_PER_STAGE * 25 * player.max_unlocked_difficulty
+        b.row(InlineKeyboardButton(text=f"💀 Воскреситься (💰 {cost})", callback_data=ShopCB(action="revive").pack()))
+
+    b.row(InlineKeyboardButton(text="🔙 Назад",
+          callback_data=MenuCB(action="profile").pack()))
+
+    await safe_edit(query.message, text, reply_markup=b.as_markup())
     b.row(InlineKeyboardButton(text="🔙 Назад",
           callback_data=MenuCB(action="profile").pack()))
 
@@ -2997,6 +3165,23 @@ async def process_shop(query: CallbackQuery, callback_data: ShopCB):
             await menu_shop(query, MenuCB(action="shop"))
         else:
             await query.answer("Недостаточно золота!", show_alert=True)
+    elif act == "revive":
+        if player.state == 'dead':
+            cost = GOLD_PER_STAGE * 25 * player.max_unlocked_difficulty
+            if player.gold >= cost:
+                player.gold -= cost
+                t_stats = get_total_stats(player)
+                player.hp = t_stats['max_hp']
+                player.state = 'idle'
+                player.state_end_time = 0
+                await save_player(player)
+                await query.answer("✨ Вы воскресли!", show_alert=True)
+                # Обновляем меню магазина
+                await menu_shop(query, MenuCB(action="shop"))
+            else:
+                await query.answer(f"❌ Недостаточно золота! Нужно {cost}.", show_alert=True)
+        else:
+            await query.answer("💚 Вы живы, воскрешение не требуется.", show_alert=True)
 
 # ===================== ЛАВКА ЗЕЛИЙ =====================
 
@@ -3177,7 +3362,7 @@ async def view_spell(query: CallbackQuery, callback_data: SpellCB):
     text += f"\n💧 Стоимость маны: {actual_cost}\n"
     text += f"⏱ Перезарядка: {fmt_float(current_cooldown, 5)}с\n"
     text += f"🔮 Аркан: {spell.get('arcane', 0)} (прогресс: {spell.get('arcane_progress', 0)}/20)\n"
-    text += f"📈 Всего улучшений: {spell.get('upgrades', 0)}\n"
+    text += f"\n📈 Всего улучшений: {spell.get('upgrades', 0)}\n"
 
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     b = InlineKeyboardBuilder()
@@ -3195,7 +3380,7 @@ async def view_spell(query: CallbackQuery, callback_data: SpellCB):
     
     b.row(
         InlineKeyboardButton(text="🔙 Назад", callback_data=MenuCB(action="spells").pack()),
-        InlineKeyboardButton(text="Выбросить", callback_data=SpellCB(action="discard", idx=idx).pack()),
+        InlineKeyboardButton(text="🗑 Выбросить", callback_data=SpellCB(action="discard", idx=idx).pack()),
         InlineKeyboardButton(text="Экипировать", callback_data=SpellCB(action="equip", idx=idx).pack())
     )
 
@@ -3307,7 +3492,7 @@ async def view_active_spell(query: CallbackQuery, callback_data: SpellCB):
     current_cooldown = spell['base_cooldown'] * ((1 - 0.1 * talent) ** spell.get('cooldown_upgrades', 0))
     text += f"⏱ Перезарядка: {fmt_float(current_cooldown, 5)}с\n"
     text += f"🔮 Аркан: {spell.get('arcane', 0)} (прогресс: {spell.get('arcane_progress', 0)}/20)\n"
-    text += f"📈 Всего улучшений: {spell.get('upgrades', 0)}\n"
+    text += f"\n📈 Всего улучшений: {spell.get('upgrades', 0)}\n"
 
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     b = InlineKeyboardBuilder()
