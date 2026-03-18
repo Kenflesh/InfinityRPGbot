@@ -1945,7 +1945,9 @@ async def get_item_view_data(player: Player, global_idx: int):
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     b = InlineKeyboardBuilder()
 
-    # Кнопки для каждого стата (пара: улучшить и сбросить)
+    dust = item.get('dust', 0)
+    battle_count = item.get('battle_count', 0)
+
     for stat_key, stat_data in item["stats"].items():
         is_percent = stat_key in PERCENT_STATS
         
@@ -1959,16 +1961,17 @@ async def get_item_view_data(player: Player, global_idx: int):
         text += f"• {s_ru}: {curr_str}{bonus_symbol} (база {base_str}{bonus_symbol}, улучшений {stat_data['upgrades']})\n"
         text += f"         Улучшить: 💰 {upg_cost} (+{base_str}{bonus_symbol})\n"
 
-        # Кнопки для этого стата
-        b.button(text="⬆️", callback_data=ItemCB(action="upg", idx=global_idx, stat=stat_key).pack())
-        b.button(text="🎲 Сброс", callback_data=ItemCB(action="reroll", idx=global_idx, stat=stat_key).pack())
+        upg_text = f"⬆️ {STAT_EMOJI.get(stat_key, '')}".strip()
+        b.button(text=upg_text, callback_data=ItemCB(action="upg", idx=global_idx, stat=stat_key).pack())
 
-    # Располагаем кнопки по две в ряд
+        if dust > 0:
+            b.button(text="🎲 Сброс", callback_data=ItemCB(action="reroll", idx=global_idx, stat=stat_key).pack())
+
     b.adjust(2)
 
-    dust = item.get('dust', 0)
-    battle_count = item.get('battle_count', 0)
     text += f"\n🔮 Пыль душ: {dust} | Боёв: {battle_count}/{DUST_PER_BATTLE}\n"
+    if dust > 0:
+        text += f"\n🎲 Вы можете сбросить выбранный стат, потратив 1 пыль\n"
 
     if dust > 0:
         b.row(InlineKeyboardButton(text=f"✨ Использовать пыль душ", callback_data=ItemCB(action="upgrade_rarity", idx=global_idx).pack()))
@@ -3128,10 +3131,6 @@ async def menu_shop(query: CallbackQuery, callback_data: MenuCB):
         cost = GOLD_PER_STAGE * 25 * player.max_unlocked_difficulty
         b.row(InlineKeyboardButton(text=f"💀 Воскреситься (💰 {cost})", callback_data=ShopCB(action="revive").pack()))
 
-    b.row(InlineKeyboardButton(text="🔙 Назад",
-          callback_data=MenuCB(action="profile").pack()))
-
-    await safe_edit(query.message, text, reply_markup=b.as_markup())
     b.row(InlineKeyboardButton(text="🔙 Назад",
           callback_data=MenuCB(action="profile").pack()))
 
