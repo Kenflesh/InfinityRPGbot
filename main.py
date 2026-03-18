@@ -198,23 +198,80 @@ ITEM_HANDS_USED = {
 
 #Какие статы для каких предметов разрешены
 ITEM_ALLOWED_STATS = {
-    "weapon1h_physical": ["atk", "atk_spd", "crit_chance", "crit_damage", "armor_pen", "accuracy", "lifesteal"],
-    "weapon1h_magical": ["magic_atk", "atk_spd", "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"],
-    "weapon2h_physical": ["atk", "atk_spd", "crit_chance", "crit_damage", "armor_pen", "accuracy", "lifesteal"],
-    "weapon2h_magical": ["magic_atk", "atk_spd", "crit_chance", "crit_damage", "accuracy", "lifesteal", "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"],
-    "shield": ["def", "magic_res", "max_hp", "m_shield", "thorns"],
-    "tome": ["magic_atk", "max_mp", "m_shield", "mp_regen", "crit_chance", "crit_damage", "accuracy", "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"],
-    "tome2h": ["def", "max_hp", "max_mp", "hp_regen", "mp_regen", "atk_spd", "evasion_rating", "lifesteal",
-               "armor_pen", "magic_atk", "magic_res", "thorns", "m_shield",
-               "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"],
-    "boots": ["def", "evasion_rating", "hp_regen", "max_hp"],
-    "belt": ["def", "evasion_rating", "max_hp", "hp_regen"],
-    "robe": ["def", "magic_res", "max_hp", "hp_regen", "mp_regen", "thorns", "evasion_rating"],
-    "helmet": ["def", "max_hp", "accuracy", "evasion_rating", "thorns"],
-    "amulet": ["magic_atk", "max_mp", "mp_regen", "crit_chance", "crit_damage", "accuracy", "evasion_rating", "lifesteal", "m_shield", "thorns", "hp_regen", "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"],
-    "ring": ["atk", "magic_atk", "def", "magic_res", "max_hp", "max_mp", "hp_regen", "mp_regen",
-             "crit_chance", "crit_damage", "accuracy", "evasion_rating", "lifesteal", "armor_pen", "thorns", "m_shield",
-             "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"]
+    "weapon1h_physical": [
+        "max_hp", "atk", "def", "crit_chance", "crit_damage",
+        "accuracy", "evasion_rating", "atk_spd", "hp_regen", "lifesteal",
+        "armor_pen"
+    ],
+    "weapon1h_magical": [
+        "max_mp", "m_shield", "atk_spd", "mp_regen",
+        "magic_atk","magic_efficiency",
+        "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"
+    ],
+    "weapon2h_physical": [
+        "max_hp", "atk", "def", "crit_chance", "crit_damage",
+        "accuracy", "evasion_rating", "atk_spd", "hp_regen", "lifesteal",
+        "armor_pen"
+    ],
+    "weapon2h_magical": [
+        "max_mp", "m_shield", "atk_spd", "mp_regen",
+        "magic_atk", "magic_efficiency",
+        "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"
+    ],
+    "shield": [
+        "max_hp", "max_mp", "def", "m_shield", "crit_chance", "crit_damage",
+        "accuracy", "evasion_rating", "atk_spd", "hp_regen", "mp_regen", "lifesteal",
+        "armor_pen", "thorns", "magic_atk", "magic_res", "magic_efficiency",
+        "magic_crit_chance", "magic_crit_damage", "magic_shield_drain", "effect_resistance"
+    ],
+    "tome": [
+        "max_hp", "max_mp", "def", "m_shield", "crit_chance", "crit_damage",
+        "accuracy", "evasion_rating", "atk_spd", "hp_regen", "mp_regen", "lifesteal",
+        "armor_pen", "thorns", "magic_atk", "magic_res", "magic_efficiency",
+        "magic_crit_chance", "magic_crit_damage", "magic_shield_drain", "effect_resistance"
+    ],
+    "tome2h": [
+        "max_hp", "max_mp", "def", "m_shield", "crit_chance", "crit_damage",
+        "accuracy", "evasion_rating", "atk_spd", "hp_regen", "mp_regen", "lifesteal",
+        "armor_pen", "thorns", "magic_atk", "magic_res", "magic_efficiency",
+        "magic_crit_chance", "magic_crit_damage", "magic_shield_drain", "effect_resistance"
+    ],
+    "boots": [
+        "max_hp", "max_mp", "atk", "def", "m_shield", "crit_chance", "crit_damage",
+        "accuracy", "evasion_rating", "atk_spd", "hp_regen", "mp_regen", "lifesteal",
+        "armor_pen", "thorns", "magic_atk", "magic_res", "magic_efficiency",
+        "magic_crit_chance", "magic_crit_damage", "magic_shield_drain", "effect_resistance"
+    ],
+    "belt": [
+        "max_hp", "max_mp", "atk", "def", "m_shield", "crit_chance", "crit_damage",
+        "accuracy", "evasion_rating", "atk_spd", "hp_regen", "mp_regen", "lifesteal",
+        "armor_pen", "thorns", "magic_atk", "magic_res", "magic_efficiency",
+        "magic_crit_chance", "magic_crit_damage", "magic_shield_drain", "effect_resistance"
+    ],
+    "robe": [
+        "max_hp", "max_mp", "atk", "def", "m_shield", "crit_chance", "crit_damage",
+        "accuracy", "evasion_rating", "atk_spd", "hp_regen", "mp_regen", "lifesteal",
+        "armor_pen", "thorns", "magic_atk", "magic_res", "magic_efficiency",
+        "magic_crit_chance", "magic_crit_damage", "magic_shield_drain", "effect_resistance"
+    ],
+    "helmet": [
+        "max_hp", "max_mp", "atk", "def", "m_shield", "crit_chance", "crit_damage",
+        "accuracy", "evasion_rating", "atk_spd", "hp_regen", "mp_regen", "lifesteal",
+        "armor_pen", "thorns", "magic_atk", "magic_res", "magic_efficiency",
+        "magic_crit_chance", "magic_crit_damage", "magic_shield_drain", "effect_resistance"
+    ],
+    "amulet": [
+        "max_hp", "max_mp", "atk", "def", "m_shield", "crit_chance", "crit_damage",
+        "accuracy", "evasion_rating", "atk_spd", "hp_regen", "mp_regen", "lifesteal",
+        "armor_pen", "thorns", "magic_atk", "magic_res", "magic_efficiency",
+        "magic_crit_chance", "magic_crit_damage", "magic_shield_drain", "effect_resistance"
+    ],
+    "ring": [
+        "max_hp", "max_mp", "atk", "def", "m_shield", "crit_chance", "crit_damage",
+        "accuracy", "evasion_rating", "atk_spd", "hp_regen", "mp_regen", "lifesteal",
+        "armor_pen", "thorns", "magic_atk", "magic_res", "magic_efficiency",
+        "magic_crit_chance", "magic_crit_damage", "magic_shield_drain", "effect_resistance"
+    ]
 }
 
 #Множитель, на который умножаются статы предметов, чтобы не быть слишком большими
@@ -1079,7 +1136,7 @@ def generate_effect(effect_type, power, target=None):
         "type": effect_type,
         "target": target if target else (TARGET_ENEMY if effect_type in ["damage", "dot", "debuff", "time_stop", "mp_burn"] else TARGET_SELF),
         "base_value": 0,
-        "duration": 0,          # будет использоваться только для time_stop
+        "duration": 0,
         "interval": 0,
         "chance": 1.0,
         "stat": None
@@ -1091,17 +1148,18 @@ def generate_effect(effect_type, power, target=None):
             base = power * random.uniform(0.5, 1.5)
         effect["base_value"] = round(max(1.0, base), 1) if effect_type in ["shield", "mp_restore", "mp_burn"] else round(base, 1)
     elif effect_type in ["dot", "hot"]:
-        base = power * random.uniform(0.2, 0.5)          # уменьшено
+        base = power * random.uniform(0.2, 0.5)          # зависит от силы
         effect["base_value"] = round(base, 1)
         effect["interval"] = random.choice([1, 2, 3])
     elif effect_type in ["buff", "debuff"]:
-        stat = random.choice(["atk", "def", "magic_atk", "magic_res", "atk_spd",
-                             "crit_chance", "crit_damage", "magic_crit_chance", "magic_crit_damage"])
-        base = power * random.uniform(0.02, 0.1)         # 2% – 10%
-        effect["stat"] = stat
+        # Не зависит от силы врага (фиксированный диапазон 2–10%)
+        base = random.uniform(0.02, 0.1)
+        effect["stat"] = random.choice(["atk", "def", "magic_atk", "magic_res", "atk_spd", "effect_resistance",
+                                         "crit_chance", "crit_damage", "magic_crit_chance", "magic_crit_damage"])
         effect["base_value"] = round(base, 3)
     elif effect_type == "time_stop":
-        effect["duration"] = random.uniform(0.1, 0.3)
+        # Не зависит от силы врага
+        effect["duration"] = random.uniform(0.05, 0.5)
     return effect
 
 
@@ -1117,8 +1175,16 @@ def generate_spell(enemy_class_key, power, max_mp, force_min_effects=1):
     possible_effects = ["damage", "heal", "dot", "hot", "buff",
                         "debuff", "shield", "time_stop", "mp_restore", "mp_burn"]
     effects = []
+    
+    # Модифицируем шансы дополнительных эффектов с учётом уровня угрозы (power)
+    # Добавляем 0.05% за каждый уровень угрозы (0.0005 в десятичной дроби)
+    bonus = power * 0.0005
+    modified_chances = EFFECT_CHANCE_CHAIN.copy()
+    for i in range(1, len(modified_chances)):
+        modified_chances[i] = min(1.0, modified_chances[i] + bonus)
+    
     chance_index = 0
-    while chance_index < MAX_EFFECTS_PER_SPELL and (len(effects) < force_min_effects or random.random() < EFFECT_CHANCE_CHAIN[chance_index]):
+    while chance_index < MAX_EFFECTS_PER_SPELL and (len(effects) < force_min_effects or random.random() < modified_chances[chance_index]):
         effect_type = random.choice(possible_effects)
         target = TARGET_ENEMY if effect_type in [
             "damage", "dot", "debuff", "time_stop", "mp_burn"] else TARGET_SELF
