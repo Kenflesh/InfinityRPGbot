@@ -939,8 +939,8 @@ async def check_and_complete_state(player):
                 pass
         elif player.state == 'expedition':
             t_stats = get_total_stats(player)
-            base_gold = GOLD_PER_STAGE * 20 * player.max_unlocked_difficulty
-            gold_found = int(base_gold * random.uniform(0.1, 3) * t_stats["gold_mult"])
+            base_gold = GOLD_PER_STAGE * 40 * player.max_unlocked_difficulty
+            gold_found = int(base_gold * random.uniform(1, 3) * t_stats["gold_mult"])
             player.gold += gold_found
             msg = f"🧭 Экспедиция завершена!\nВы нашли: 💰 {gold_found} золота."
             gold_mult = 0.4
@@ -948,7 +948,7 @@ async def check_and_complete_state(player):
             while random.random() < gold_mult and items_found < 3:
                 item_type = random.choice(ITEM_TYPES)
                 rarity = max(1, player.max_unlocked_difficulty * t_stats["gold_mult"])
-                item = generate_item(item_type, rarity)
+                item = generate_item(item_type, rarity, player.max_unlocked_difficulty)
                 if len(player.inventory) < player.inv_slots:
                     player.inventory.append(item)
                     items_found += 1
@@ -1012,7 +1012,7 @@ async def background_worker():
                     elif player.state == 'expedition':
                         t_stats = get_total_stats(player)
                         base_gold = GOLD_PER_STAGE * 40 * player.max_unlocked_difficulty
-                        gold_found = int(base_gold * random.uniform(0.1, 3) * t_stats["gold_mult"])
+                        gold_found = int(base_gold * random.uniform(1, 3) * t_stats["gold_mult"])
                         player.gold += gold_found
                         msg = f"🧭 Экспедиция завершена!\nВы нашли: 💰 {gold_found} золота."
 
@@ -1021,7 +1021,7 @@ async def background_worker():
                         while random.random() < gold_mult and items_found < 3:
                             item_type = random.choice(ITEM_TYPES)
                             rarity = max(1, player.max_unlocked_difficulty * t_stats["gold_mult"])
-                            item = generate_item(item_type, rarity)
+                            item = generate_item(item_type, rarity, player.max_unlocked_difficulty)
                             if len(player.inventory) < player.inv_slots:
                                 player.inventory.append(item)
                                 items_found += 1
@@ -1059,7 +1059,7 @@ def generate_item_name(item_type):
     suffix = random.choice(SUFFIXES)
     return f"{prefix} {noun} {suffix}"
 
-def generate_item(item_type, rarity):
+def generate_item(item_type, rarity, drop_difficulty):
     name = generate_item_name(item_type)
 
     # Максимальное количество статов для данного типа предмета (кольца могут иметь больше)
@@ -1113,13 +1113,9 @@ def generate_item(item_type, rarity):
 
     stat_mult = STAT_BASE_ITEM_MULTIPLIERS
 
-    base_price = 0
     for stat in chosen_stats:
-        #is_percent = stat in PERCENT_STATS - Я не знаю надо ли это писать с методом ниже
-        
         stat_data = generate_single_stat(stat, item_type, rarity)
         item_stats[stat] = stat_data
-        base_price += int(stat_data["base"] * (100 if stat in PERCENT_STATS else 10))
 
     return {
         "id": "i_" + str(time.time()).replace(".", "") + str(random.randint(10, 99)),
@@ -1129,14 +1125,15 @@ def generate_item(item_type, rarity):
         "rarity": rarity,
         "dust": 0,
         "battle_count": 0,
-        "sell_price": max(10, int(base_price * 0.25))
+        "drop_difficulty": drop_difficulty,
+        "sell_price": max(10, int(SHOP_BASE_PRICE * drop_difficulty * 0.3))
     }
 
 def generate_single_stat(stat: str, item_type: str, rarity: float):
     stat_mult = STAT_BASE_ITEM_MULTIPLIERS
     mult = stat_mult.get(stat, 1.0)
 
-    raw = (rarity * 0.25 * random.uniform(0.8, 1.2)) * mult
+    raw = (rarity * 0.5 * random.uniform(0.8, 1.2)) * mult
     if "weapon2h" in item_type:
         raw *= TWOHAND_MULTIPLIER
     elif item_type == "tome2h":
@@ -1149,7 +1146,7 @@ def generate_single_stat(stat: str, item_type: str, rarity: float):
     if stat in STATS_WITH_PERCENT_OPTION:
         bonus_type = random.choice(["flat", "percent"])
 
-    upgrade_price_mult = random.uniform(0.25, 1.25)
+    upgrade_price_mult = random.uniform(0.35, 1.25)
 
     return {
         "base": base_val,
@@ -1412,7 +1409,7 @@ async def update_shop(player, force=False):
         rarity = (player.max_unlocked_difficulty + 5.0) * t_stats["luck"]
         for _ in range(5):
             item_type = random.choice(ITEM_TYPES)
-            item = generate_item(item_type, rarity)
+            item = generate_item(item_type, rarity, player.max_unlocked_difficulty)
             price = int(SHOP_BASE_PRICE * player.max_unlocked_difficulty * random.uniform(0.8, 1.2))
             player.shop_assortment.append(
                 {"item": item, "price": price, "sold": False})
@@ -2106,7 +2103,7 @@ async def get_item_view_data(player: Player, global_idx: int):
     for stat_key, stat_data in item["stats"].items():
         is_percent = stat_key in PERCENT_STATS
         
-        raw_cost = GOLD_PER_STAGE * 20 * player.max_unlocked_difficulty * stat_data.get('upgrade_price_mult', 1.0)
+        raw_cost = GOLD_PER_STAGE * 15 * player.max_unlocked_difficulty * stat_data.get('upgrade_price_mult', 1.0)
         upg_cost = max(100, int(raw_cost))
         s_ru = f"{STAT_EMOJI.get(stat_key, '')} {STAT_RU.get(stat_key, stat_key)}"
         bonus_type = stat_data.get('bonus_type', 'flat')
@@ -2727,7 +2724,7 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
                 if random.random() < drop_chance_scaled:
                     item_type = random.choice(ITEM_TYPES)
                     rarity = max(1, player.current_difficulty * t_stats["luck"])
-                    item = generate_item(item_type, rarity)
+                    item = generate_item(item_type, rarity, player.current_difficulty)
                     if len(player.inventory) < player.inv_slots:
                         player.inventory.append(item)
                         result_msg += f"\n\n📦 Выпал предмет: {item['name']}"
@@ -3120,7 +3117,7 @@ async def upg_item(query: CallbackQuery, callback_data: ItemCB):
         return
 
     s_data = item["stats"][stat_key]
-    raw_cost = GOLD_PER_STAGE * 20 * player.max_unlocked_difficulty * s_data.get('upgrade_price_mult', 1.0)
+    raw_cost = GOLD_PER_STAGE * 15 * player.max_unlocked_difficulty * s_data.get('upgrade_price_mult', 1.0)
     upg_cost = max(100, int(raw_cost))
 
     if player.gold >= upg_cost:
