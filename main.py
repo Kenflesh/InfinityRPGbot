@@ -1929,6 +1929,13 @@ async def safe_edit(message: Message, text: str, reply_markup: InlineKeyboardMar
         if "message is not modified" not in str(e):
             raise
 
+async def safe_send_message(message: Message, text: str, reply_markup=None, parse_mode=ParseMode.HTML):
+    try:
+        return await message.answer(text, reply_markup=reply_markup, parse_mode=parse_mode)
+    except TelegramRetryAfter as e:
+        await asyncio.sleep(e.retry_after)
+        return await safe_send_message(message, text, reply_markup, parse_mode)
+
 # ===================== ПРОСМОТР ПРЕДМЕТА =====================
 
 async def get_item_view_data(player: Player, global_idx: int):
@@ -2080,7 +2087,7 @@ async def cmd_leaderboard(message: Message):
     await update_leaderboard_cache()
     full = leaderboard_cache['full_sorted']
     if not full:
-        await message.answer("Пока нет игроков.")
+        await safe_send_message(message, "Пока нет игроков.")
         return
     user_id = str(message.from_user.id)
     position = None
@@ -2100,7 +2107,7 @@ async def cmd_leaderboard(message: Message):
                     break
     else:
         text += "Вы еще не начинали играть?\n\nНапишите /start в @InfinitRPGbot"
-    await message.answer(text)
+    await safe_send_message(message, text)
 
 @dp.message(Command("profile"))
 async def cmd_profile(message: Message):
