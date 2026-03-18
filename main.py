@@ -2868,7 +2868,7 @@ async def menu_shop(query: CallbackQuery, callback_data: MenuCB):
         it = entry["item"]
         item_type_ru = ITEM_TYPE_RU.get(it['item_type'], it['item_type'])
         stat_desc = "\n".join(
-            [f"{STAT_EMOJI.get(k, '')}{STAT_RU.get(k, k)}: {fmt_float(v['base'], 3)}" for k, v in it['stats'].items()])
+            [f"{STAT_EMOJI.get(k, '')}      {STAT_RU.get(k, k)}: {fmt_float(v['base'], 3)}" for k, v in it['stats'].items()])
         price = entry["price"]
         text += f"\n{btn_num}. [{item_type_ru}] {it['name']}:\n{stat_desc}\nСтоимость: 💰 {price}\n"
         b.button(text=f"{btn_num}", callback_data=ShopCB(
