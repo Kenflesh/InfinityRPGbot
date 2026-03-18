@@ -833,7 +833,7 @@ def generate_item(item_type, rarity):
     remaining_rarity = rarity - total_hundreds * 100  # остаток для шанса (всегда < 100)
 
     # Добавляем случайные статы с убывающей вероятностью, начиная с остатка
-    extra_chance = remaining_rarity / 100.0  # от 0 до 1
+    extra_chance = 0.5 + remaining_rarity / 100.0  # от 0 до 1
     while stats_count < max_stats and random.random() < extra_chance:
         stats_count += 1
         extra_chance *= 0.5  # шанс на следующий стат падает вдвое
@@ -877,7 +877,7 @@ def generate_item(item_type, rarity):
                     "magic_crit_chance", "magic_crit_damage", "magic_shield_drain"]:
             bonus_type = random.choice(["flat", "percent"])
 
-        upgrade_price_mult = random.uniform(0.5, 3.0)
+        upgrade_price_mult = random.uniform(0.25, 2.5)
 
         item_stats[stat] = {
             "base": base_val,
@@ -1022,9 +1022,8 @@ def generate_spell(enemy_class_key, power, max_mp, force_min_effects=1):
 
 # ===================== ГЕНЕРАЦИЯ ВРАГА =====================
 
-
 def generate_enemy(difficulty):
-    def variance(): return random.uniform(0.8, 1.2)
+    def variance(): return random.uniform(0.7, 1.2)
     class_key = random.choice(list(ENEMY_CLASSES.keys()))
     enemy_class = ENEMY_CLASSES[class_key]
     class_mult = enemy_class["mult"]
@@ -2348,7 +2347,8 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
                         result_msg += "\n\n📦 Предмет выпал, но инвентарь полон!"
     
                 base_gold = GOLD_PER_STAGE * player.current_difficulty
-                actual_gold = int(base_gold * enemy['power_mult'] * t_stats["gold_mult"])
+                adjusted_power_mult = max(0.75, enemy['power_mult'])
+                actual_gold = int(base_gold * adjusted_power_mult * t_stats["gold_mult"])
                 player.gold += actual_gold
     
                 result_msg += f"\n\n💰 Найдено золота: {actual_gold}, теперь у вас {player.gold}"
