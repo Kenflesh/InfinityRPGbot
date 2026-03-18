@@ -310,7 +310,7 @@ CONFIG = {
         "magic_atk": 1.0,          
         "magic_res": 0.4,          
         "atk_spd": 0.025,         
-        "accuracy": 0.3,          
+        "accuracy": 0.15,          
         "evasion_rating": 0.1,     
         "crit_chance": 0.3,        
         "crit_damage": 3.0,        
@@ -392,7 +392,7 @@ ENEMY_CLASSES = {
             "def": 0.2,
             "magic_res": 0.2,
             "atk_spd": 1.25,
-            "accuracy": 1.5,
+            "accuracy": 0.8,
             "evasion_rating": 0.2,
             "crit_chance": 0.25,
             "crit_damage": 0.5,
@@ -442,7 +442,7 @@ ENEMY_CLASSES = {
             "def": 0.2,
             "magic_res": 0.2,
             "atk_spd": 1.5,
-            "accuracy": 1.75,
+            "accuracy": 1.25,
             "evasion_rating": 1.75,
             "crit_chance": 1.5,
             "crit_damage": 1.5,
@@ -1971,7 +1971,7 @@ async def get_item_view_data(player: Player, global_idx: int):
 
     text += f"\n🔮 Пыль душ: {dust} | Боёв: {battle_count}/{DUST_PER_BATTLE}\n"
     if dust > 0:
-        text += f"\n🎲 Вы можете сбросить выбранный стат, потратив 1 пыль\n"
+        text += f"\n🎲 Вы можете сбросить выбранный стат, потратив 1 пыль\nЭто сбросит кол-во улучшений этого стата и даст вам новый, случайный стат вместо него\n"
 
     if dust > 0:
         b.row(InlineKeyboardButton(text=f"✨ Использовать пыль душ", callback_data=ItemCB(action="upgrade_rarity", idx=global_idx).pack()))
