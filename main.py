@@ -2348,6 +2348,31 @@ def get_item_by_global_index(player, global_idx):
 
     return None, None, None
 
+def get_spell_emoji(spell):
+    """Возвращает эмодзи, соответствующий основному эффекту заклинания."""
+    # Приоритет типов эффектов (чем выше в списке, тем важнее)
+    priority_map = {
+        "damage": "⚔️",
+        "heal": "💚",
+        "shield": "🛡️",
+        "buff": "⬆️",
+        "debuff": "⬇️",
+        "time_stop": "⏸️",
+        "mp_restore": "💧",
+        "mp_burn": "🔥",
+        "dot": "🔥",
+        "hot": "💚"
+    }
+    # Собираем все типы эффектов из заклинания
+    types = {eff['type'] for eff in spell.get('effects', [])}
+    if not types:
+        return "❓"
+    # Выбираем первый по приоритету
+    for key in priority_map:
+        if key in types:
+            return priority_map[key]
+    return "✨"
+
 @dp.callback_query(MenuCB.filter(F.action == "train"))
 async def menu_train(query: CallbackQuery, callback_data: MenuCB):
     player = await get_player(query.from_user.id)
@@ -3384,7 +3409,7 @@ async def view_spell(query: CallbackQuery, callback_data: SpellCB):
     
     current_cooldown = spell['base_cooldown'] * ((1 - 0.1 * talent) ** spell.get('cooldown_upgrades', 0))
 
-    text = f"🔮 <b>{spell['name']}</b>\n"
+    text = f"✨ <b>{spell['name']}</b>\n"
     text += f"📖 Описание:\n"
     for i, eff in enumerate(spell['effects']):
         target = "на себя" if eff['target'] == TARGET_SELF else "на врага"
@@ -3419,7 +3444,7 @@ async def view_spell(query: CallbackQuery, callback_data: SpellCB):
     
     text += f"\n💧 Стоимость маны: {actual_cost}\n"
     text += f"⏱ Перезарядка: {fmt_float(current_cooldown, 5)}с\n"
-    text += f"🔮 Аркан: {spell.get('arcane', 0)} (прогресс: {spell.get('arcane_progress', 0)}/20)\n"
+    text += f"🃏 Аркан: {spell.get('arcane', 0)} (прогресс: {spell.get('arcane_progress', 0)}/20)\n"
     text += f"\n📈 Всего улучшений: {spell.get('upgrades', 0)}\n"
 
     from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -3432,7 +3457,7 @@ async def view_spell(query: CallbackQuery, callback_data: SpellCB):
             b.row(btn)
 
     b.row(InlineKeyboardButton(
-        text=f"⏱️ Перезарядка -10% (🔮5)",
+        text=f"⏱️ Перезарядка -10% (🃏5)",
         callback_data=SpellEffectCB(action="upgrade", spell_idx=idx, effect_idx=-1, param="cooldown", slot=-1).pack()
     ))
     
@@ -3513,7 +3538,7 @@ async def view_active_spell(query: CallbackQuery, callback_data: SpellCB):
     t_stats = get_total_stats(player)
     talent = t_stats.get('talent', 1.0)
 
-    text = f"🔮 <b>{spell['name']}</b> (активный слот {slot+1})\n"
+    text = f"🃏 <b>{spell['name']}</b> (активный слот {slot+1})\n"
     text += f"📖 Описание:\n"
     for i, eff in enumerate(spell['effects']):
         target = "на себя" if eff['target'] == TARGET_SELF else "на врага"
@@ -3549,7 +3574,7 @@ async def view_active_spell(query: CallbackQuery, callback_data: SpellCB):
     text += f"\n💧 Стоимость маны: {actual_cost}\n"
     current_cooldown = spell['base_cooldown'] * ((1 - 0.1 * talent) ** spell.get('cooldown_upgrades', 0))
     text += f"⏱ Перезарядка: {fmt_float(current_cooldown, 5)}с\n"
-    text += f"🔮 Аркан: {spell.get('arcane', 0)} (прогресс: {spell.get('arcane_progress', 0)}/20)\n"
+    text += f"🃏 Аркан: {spell.get('arcane', 0)} (прогресс: {spell.get('arcane_progress', 0)}/20)\n"
     text += f"\n📈 Всего улучшений: {spell.get('upgrades', 0)}\n"
 
     from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -3562,7 +3587,7 @@ async def view_active_spell(query: CallbackQuery, callback_data: SpellCB):
             b.row(btn)
 
     b.row(InlineKeyboardButton(
-        text=f"⏱️ Перезарядка -10% (🔮5)",
+        text=f"⏱️ Перезарядка -10% (🃏5)",
         callback_data=SpellEffectCB(action="upgrade", spell_idx=-1, effect_idx=-1, param="cooldown", slot=slot).pack()
     ))
     
@@ -3577,26 +3602,26 @@ def get_effect_upgrade_buttons(effect, effect_idx, spell_idx, slot):
     buttons = []
     if effect['type'] in ['damage', 'heal', 'shield', 'mp_restore', 'mp_burn']:
         buttons.append(InlineKeyboardButton(
-            text=f"📈 Сила +10% (🔮5)",
+            text=f"📈 Сила +10% (🃏5)",
             callback_data=SpellEffectCB(action="upgrade", spell_idx=spell_idx, effect_idx=effect_idx, param="value", slot=slot).pack()
         ))
     elif effect['type'] in ['dot', 'hot']:
         buttons.append(InlineKeyboardButton(
-            text=f"📈 Урон/лечение +10% (🔮5)",
+            text=f"📈 Урон/лечение +10% (🃏5)",
             callback_data=SpellEffectCB(action="upgrade", spell_idx=spell_idx, effect_idx=effect_idx, param="value", slot=slot).pack()
         ))
         buttons.append(InlineKeyboardButton(
-            text=f"⚡ Интервал -10% (🔮5)",
+            text=f"⚡ Интервал -10% (🃏5)",
             callback_data=SpellEffectCB(action="upgrade", spell_idx=spell_idx, effect_idx=effect_idx, param="interval", slot=slot).pack()
         ))
     elif effect['type'] in ['buff', 'debuff']:
         buttons.append(InlineKeyboardButton(
-            text=f"📈 Эффект +10% (🔮5)",
+            text=f"📈 Эффект +10% (🃏5)",
             callback_data=SpellEffectCB(action="upgrade", spell_idx=spell_idx, effect_idx=effect_idx, param="value", slot=slot).pack()
         ))
     elif effect['type'] == 'time_stop':
         buttons.append(InlineKeyboardButton(
-            text=f"⏱ Длительность +10% (🔮5)",
+            text=f"⏱ Длительность +10% (🃏5)",
             callback_data=SpellEffectCB(action="upgrade", spell_idx=spell_idx, effect_idx=effect_idx, param="duration", slot=slot).pack()
         ))
     return buttons
@@ -3720,10 +3745,14 @@ async def menu_spells(query: CallbackQuery, callback_data: MenuCB):
     from aiogram.utils.keyboard import InlineKeyboardBuilder
 
     slot_buttons = []
-    # Формируем текст для слотов и собираем кнопки для занятых слотов
+    # Активные слоты
     for i, spell in enumerate(player.active_spells):
         if spell:
-            text += f"Слот {i+1}: {spell['name']} (МП:{spell['mp_cost']}, КД:{spell['base_cooldown']:.1f}с, улучш.{spell['upgrades']})\n"
+            emoji = get_spell_emoji(spell)
+            arcane = spell.get('arcane', 0)
+            arcane_str = f" 🃏{arcane}" if arcane > 0 else ""
+            text += (f"Слот {i+1}: {emoji} <b>{spell['name']}</b>{arcane_str} "
+                     f"(МП:{spell['mp_cost']}, КД:{spell['base_cooldown']:.1f}с, улучш.{spell['upgrades']})\n")
             slot_buttons.append(
                 InlineKeyboardButton(
                     text=f"Слот {i+1}",
@@ -3738,8 +3767,12 @@ async def menu_spells(query: CallbackQuery, callback_data: MenuCB):
 
     inv_buttons = []
     for i, spell in enumerate(player.spell_inventory):
-        passive = " (пасс)" if spell.get('is_passive') else ""
-        text += f"{i+1}. {spell['name']}{passive} | МП:{spell['mp_cost']} | КД:{spell['base_cooldown']:.1f}с\n"
+        emoji = get_spell_emoji(spell)
+        passive = " ♾️" if spell.get('is_passive') else ""
+        arcane = spell.get('arcane', 0)
+        arcane_str = f" 🃏{arcane}" if arcane > 0 else ""
+        text += (f"{i+1}. {emoji} <b>{spell['name']}</b>{passive}{arcane_str} | "
+                 f"МП:{spell['mp_cost']} | КД:{spell['base_cooldown']:.1f}с\n")
         inv_buttons.append(
             InlineKeyboardButton(
                 text=f"{i+1}",
@@ -3750,19 +3783,14 @@ async def menu_spells(query: CallbackQuery, callback_data: MenuCB):
     if not player.spell_inventory:
         text += "Пусто"
 
-    # Строим клавиатуру: сначала ряд(ы) со слотами, потом ряды с инвентарём, потом навигация
+    # Построение клавиатуры
     keyboard_rows = []
-
-    # Добавляем ряд со слотами (если есть)
     if slot_buttons:
-        # Слотов максимум 5, можно поместить все в один ряд
-        keyboard_rows.append(slot_buttons)
-
-    # Добавляем ряды инвентаря по 5 кнопок
+        keyboard_rows.append(slot_buttons)  # ряд слотов
+    # ряд(ы) инвентаря по 5 кнопок
     for i in range(0, len(inv_buttons), 5):
         keyboard_rows.append(inv_buttons[i:i+5])
-
-    # Добавляем кнопку назад отдельным рядом
+    # кнопка назад
     keyboard_rows.append([
         InlineKeyboardButton(text="🔙 Назад", callback_data=MenuCB(action="profile").pack())
     ])
