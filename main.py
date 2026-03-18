@@ -3445,14 +3445,15 @@ async def view_spell(query: CallbackQuery, callback_data: SpellCB):
     text += f"\n💧 Стоимость маны: {actual_cost}\n"
     text += f"⏱ Перезарядка: {fmt_float(current_cooldown, 5)}с\n"
     text += f"🃏 Аркан: {spell.get('arcane', 0)} (прогресс: {spell.get('arcane_progress', 0)}/20)\n"
-    text += f"\n📈 Всего улучшений: {spell.get('upgrades', 0)}\n"
+    text += f"\nВсего улучшений: {spell.get('upgrades', 0)}\n"
 
     # Легенда для кнопок улучшений
     text += "\n<b>Улучшения (тратят 🃏5):</b>\n"
     text += "💥 — увеличение значения на 10%\n"
     text += "⚡ — уменьшение интервала на 10%\n"
     text += "⏱ — увеличение длительности на 10%\n"
-    text += "⏱️ — уменьшение перезарядки на 10%\n"
+    text += "⏳ — уменьшение перезарядки на 10%\n"
+    text += "\n\nКаждая строка относится к отдельному эффекту заклинания"
 
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     b = InlineKeyboardBuilder()
@@ -3465,7 +3466,7 @@ async def view_spell(query: CallbackQuery, callback_data: SpellCB):
 
     # Кнопка для улучшения перезарядки (отдельная строка)
     b.row(InlineKeyboardButton(
-        text=f"⏱️ Перезарядка -10% (🃏5)",
+        text=f"⏱️",
         callback_data=SpellEffectCB(action="upgrade", spell_idx=idx, effect_idx=-1, param="cooldown", slot=-1).pack()
     ))
     
@@ -3591,7 +3592,9 @@ async def view_active_spell(query: CallbackQuery, callback_data: SpellCB):
     text += "💥 — увеличение значения на 10%\n"
     text += "⚡ — уменьшение интервала на 10%\n"
     text += "⏱ — увеличение длительности на 10%\n"
-    text += "⏱️ — уменьшение перезарядки на 10%\n"
+    text += "⏳ — уменьшение перезарядки на 10%\n"
+    text += "\n\nКаждая строка относится к отдельному эффекту заклинания"
+    
 
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     b = InlineKeyboardBuilder()
@@ -3604,7 +3607,7 @@ async def view_active_spell(query: CallbackQuery, callback_data: SpellCB):
 
     # Кнопка для улучшения перезарядки
     b.row(InlineKeyboardButton(
-        text=f"⏱️ Перезарядка -10% (🃏5)",
+        text=f"⏱️",
         callback_data=SpellEffectCB(action="upgrade", spell_idx=-1, effect_idx=-1, param="cooldown", slot=slot).pack()
     ))
     
@@ -3620,26 +3623,26 @@ def get_effect_upgrade_buttons(effect, effect_idx, spell_idx, slot):
     buttons = []
     if effect['type'] in ['damage', 'heal', 'shield', 'mp_restore', 'mp_burn']:
         buttons.append(InlineKeyboardButton(
-            text=f"💥 Сила +10% (🃏5)",
+            text=f"💥",
             callback_data=SpellEffectCB(action="upgrade", spell_idx=spell_idx, effect_idx=effect_idx, param="value", slot=slot).pack()
         ))
     elif effect['type'] in ['dot', 'hot']:
         buttons.append(InlineKeyboardButton(
-            text=f"💥 Урон/лечение +10% (🃏5)",
+            text=f"💥",
             callback_data=SpellEffectCB(action="upgrade", spell_idx=spell_idx, effect_idx=effect_idx, param="value", slot=slot).pack()
         ))
         buttons.append(InlineKeyboardButton(
-            text=f"⚡ Интервал -10% (🃏5)",
+            text=f"⚡",
             callback_data=SpellEffectCB(action="upgrade", spell_idx=spell_idx, effect_idx=effect_idx, param="interval", slot=slot).pack()
         ))
     elif effect['type'] in ['buff', 'debuff']:
         buttons.append(InlineKeyboardButton(
-            text=f"💥 Эффект +10% (🃏5)",
+            text=f"💥",
             callback_data=SpellEffectCB(action="upgrade", spell_idx=spell_idx, effect_idx=effect_idx, param="value", slot=slot).pack()
         ))
     elif effect['type'] == 'time_stop':
         buttons.append(InlineKeyboardButton(
-            text=f"⏱ Длительность +10% (🃏5)",
+            text=f"⏱",
             callback_data=SpellEffectCB(action="upgrade", spell_idx=spell_idx, effect_idx=effect_idx, param="duration", slot=slot).pack()
         ))
     return buttons
