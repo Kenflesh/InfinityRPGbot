@@ -1087,6 +1087,7 @@ def generate_enemy(difficulty):
         "hp": e_stats["hp"],
         "max_mp": e_stats["max_mp"],      # добавляем
         "mp": e_stats["mp"],
+        "m_shield": e_stats["m_shield"],
         "atk": e_stats["atk"],
         "def": e_stats["def"],
         "magic_atk": e_stats["magic_atk"],
@@ -1098,11 +1099,12 @@ def generate_enemy(difficulty):
         "crit_damage": e_stats["crit_damage"],
         "lifesteal": e_stats["lifesteal"],
         "thorns": e_stats["thorns"],
-        "hp_regen": e_stats["hp_regen"],   # <--- Добавлено
-        "mp_regen": e_stats["mp_regen"],   # <--- Добавлено
-        "magic_crit_chance": e_stats.get("magic_crit_chance", 0),
-        "magic_crit_damage": e_stats.get("magic_crit_damage", 150),
-        "magic_shield_drain": e_stats.get("magic_shield_drain", 0),
+        "effect_resistance": e_stats["effect_resistance"],
+        "hp_regen": e_stats["hp_regen"],
+        "mp_regen": e_stats["mp_regen"],
+        "magic_crit_chance": e_stats["magic_crit_chance"],
+        "magic_crit_damage": e_stats["magic_crit_damage"],
+        "magic_shield_drain": e_stats["magic_shield_drain"],
         "spells": spells,
         "power_mult": power_multiplier
     }
@@ -1461,6 +1463,7 @@ def simulate_combat_realtime(player, enemy):
 
         next_t = min(times)
         if next_t >= max_time:
+            t = max_time
             break
         delta = next_t - t
         t = next_t
