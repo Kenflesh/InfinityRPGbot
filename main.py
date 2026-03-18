@@ -35,6 +35,11 @@ db_lock = asyncio.Lock()
 db = {}
 enemy_cache = {}
 user_locks = {}
+leaderboard_cache = {
+    'last_update': 0,
+    'full_sorted': [],   # список кортежей (uid, name, username, difficulty)
+    'top_25': ""
+}
 
 #Константы
 KILLS_TO_UNLOCK_NEXT = 25
@@ -561,6 +566,26 @@ async def load_db():
 async def save_db():
     async with db_lock:
         _save_db_unlocked()
+        
+async def update_leaderboard_cache(force=False):
+    now = time.time()
+    # Обновляем раз в час (3600 секунд)
+    if force or now - leaderboard_cache['last_update'] > 3600:
+        players = []
+        async with db_lock:
+            for uid, pdata in db['players'].items():
+                difficulty = pdata.get('max_unlocked_difficulty', 1)
+                name = pdata.get('name', 'Unknown')
+                username = pdata.get('username')
+                players.append((uid, name, username, difficulty))
+        players.sort(key=lambda x: x[3], reverse=True)
+        leaderboard_cache['full_sorted'] = players
+        top_lines = []
+        for i, (uid, name, username, diff) in enumerate(players[:25], 1):
+            username_str = f"(@{username})" if username else ""
+            top_lines.append(f"{i}. {name} {username_str} — Угроза {diff}")
+        leaderboard_cache['top_25'] = "\n".join(top_lines)
+        leaderboard_cache['last_update'] = now
 
 
 def _save_db_unlocked():
@@ -578,6 +603,7 @@ class Player:
     def __init__(self, uid, name):
         self.uid = str(uid)
         self.name = name
+        self.username = None
         self.gold = 100
         self.shop_assortment = []
         self.shop_last_update = 0
@@ -653,15 +679,25 @@ class Player:
                 setattr(p, k, v)
         return p
 
-async def get_player(user_id, name="Hero"):
+async def get_player(user_id, name=None, username=None):
     uid = str(user_id)
     async with db_lock:
         if uid not in db['players']:
-            db['players'][uid] = Player(uid, name).__dict__
+            # Новый игрок – создаём с переданными данными
+            player_dict = Player(uid, name or "Hero").__dict__
+            player_dict['username'] = username
+            db['players'][uid] = player_dict
             _save_db_unlocked()
         else:
-            if name != "Hero" and db['players'][uid].get('name') != name:
+            # Обновляем имя и username, только если они переданы и отличаются
+            changed = False
+            if name is not None and db['players'][uid].get('name') != name:
                 db['players'][uid]['name'] = name
+                changed = True
+            if username is not None and db['players'][uid].get('username') != username:
+                db['players'][uid]['username'] = username
+                changed = True
+            if changed:
                 _save_db_unlocked()
         data = db['players'][uid]
     return Player.from_dict(data)
@@ -763,6 +799,11 @@ async def background_worker():
 
         if changed:
             _save_db_unlocked()
+
+async def leaderboard_updater():
+    while True:
+        await asyncio.sleep(3600)
+        await update_leaderboard_cache(force=True)
 
 # ===================== ГЕНЕРАЦИЯ ПРЕДМЕТОВ =====================
 
@@ -1766,12 +1807,107 @@ async def get_item_view_data(player: Player, global_idx: int):
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
     await load_db()
-    player = await get_player(message.from_user.id, message.from_user.first_name)
+    player = await get_player(
+        message.from_user.id,
+        name=message.from_user.first_name,
+        username=message.from_user.username
+    )
     await message.answer(
         f"Добро пожаловать, <b>{player.name}</b>!\nТвоя сила ограничивается только временем.",
         reply_markup=main_menu_kbd()
     )
 
+@dp.message(Command("leaderboard"))
+async def cmd_leaderboard(message: Message):
+    # Обновляем данные текущего пользователя
+    await get_player(
+        message.from_user.id,
+        name=message.from_user.first_name,
+        username=message.from_user.username
+    )
+    # Обновляем кэш, если нужно
+    await update_leaderboard_cache()
+    full = leaderboard_cache['full_sorted']
+    if not full:
+        await message.answer("Пока нет игроков.")
+        return
+    user_id = str(message.from_user.id)
+    position = None
+    for idx, (uid, name, username, diff) in enumerate(full, 1):
+        if uid == user_id:
+            position = idx
+            break
+    text = f"🏆 <b>Топ игроков по уровню угрозы</b>\n\n{leaderboard_cache['top_25']}\n\n"
+    if position:
+        if position <= 25:
+            text += "Вы в топе! Поздравляем!"
+        else:
+            for uid, name, username, diff in full:
+                if uid == user_id:
+                    username_str = f"(@{username})" if username else ""
+                    text += f"Ваше место: {position}. {name} {username_str} — Угроза {diff}"
+                    break
+    else:
+        text += "Вы еще не начинали играть? Напишите /start"
+    await message.answer(text)
+
+@dp.message(Command("profile"))
+async def cmd_profile(message: Message):
+    # Обновляем данные самого пользователя (чтобы его username был актуален)
+    await get_player(
+        message.from_user.id,
+        name=message.from_user.first_name,
+        username=message.from_user.username
+    )
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2:
+        await message.answer("Укажите username, например: /profile @username")
+        return
+    username_input = args[1].strip()
+    if username_input.startswith('@'):
+        username_input = username_input[1:]
+    found = None
+    async with db_lock:
+        for uid, pdata in db['players'].items():
+            if pdata.get('username') == username_input:
+                found = (uid, pdata)
+                break
+    if not found:
+        await message.answer(f"Пользователь @{username_input} не найден.")
+        return
+    uid, pdata = found
+    player = Player.from_dict(pdata)
+    t_stats = get_total_stats(player)
+
+    # Формируем полный профиль, как в menu_profile
+    text = f"👤 <b>Профиль игрока {player.name}</b> (@{player.username})\n"
+    text += f"💰 Золото: {player.gold}\n"
+    text += f"🔓 Доступная угроза: {player.max_unlocked_difficulty}\n\n"
+    text += f"🌟 Адаптивность: {t_stats['adaptability']:.3f}\n"
+    text += f"{STAT_EMOJI['hp']} {STAT_RU['hp']}: {player.hp:.1f}/{t_stats['max_hp']:.1f} (+{t_stats['hp_regen']:.2f}/мин)\n"
+    text += f"{STAT_EMOJI['m_shield']} {STAT_RU['m_shield']}: {t_stats['m_shield']:.1f} (восстанавливается каждый бой)\n"
+    text += f"{STAT_EMOJI['mp']} {STAT_RU['mp']}: {player.mp:.1f}/{t_stats['max_mp']:.1f} (+{t_stats['mp_regen']:.2f}/мин)\n"
+    text += f"{STAT_EMOJI['atk']} {STAT_RU['atk']}: {t_stats['atk']:.2f} | {STAT_EMOJI['magic_atk']} {STAT_RU['magic_atk']}: {t_stats['magic_atk']:.2f}\n"
+    text += f"{STAT_EMOJI['def']} {STAT_RU['def']}: {t_stats['def']:.2f} | {STAT_EMOJI['magic_res']} {STAT_RU['magic_res']}: {t_stats['magic_res']:.2f}\n"
+    text += f"{STAT_EMOJI['crit_chance']} {STAT_RU['crit_chance']}: {t_stats['crit_chance']:.2f}% | {STAT_EMOJI['crit_damage']} {STAT_RU['crit_damage']}: {t_stats['crit_damage']:.2f}%\n"
+    text += f"{STAT_EMOJI['magic_crit_chance']} {STAT_RU['magic_crit_chance']}: {t_stats['magic_crit_chance']:.2f}% | {STAT_EMOJI['magic_crit_damage']} {STAT_RU['magic_crit_damage']}: {t_stats['magic_crit_damage']:.2f}%\n"
+    text += f"{STAT_EMOJI['accuracy']} {STAT_RU['accuracy']}: {t_stats['accuracy']:.2f} | {STAT_EMOJI['evasion_rating']} {STAT_RU['evasion_rating']}: {t_stats['evasion_rating']:.2f}\n"
+    text += f"{STAT_EMOJI['lifesteal']} {STAT_RU['lifesteal']}: {t_stats['lifesteal']:.2f}% | {STAT_EMOJI['thorns']} {STAT_RU['thorns']}: {t_stats['thorns']:.2f}%\n"
+    text += f"{STAT_EMOJI['magic_shield_drain']} {STAT_RU['magic_shield_drain']}: {t_stats['magic_shield_drain']:.2f}% | {STAT_EMOJI['magic_efficiency']} {STAT_RU['magic_efficiency']}: {t_stats['magic_efficiency']:.2f}\n"
+    text += f"{STAT_EMOJI['armor_pen']} {STAT_RU['armor_pen']}: {t_stats['armor_pen']:.2f} | {STAT_EMOJI['atk_spd']} {STAT_RU['atk_spd']}: {t_stats['atk_spd']:.2f}\n"
+    text += f"{STAT_EMOJI['gold_mult']} {STAT_RU['gold_mult']}: x{fmt_float(t_stats['gold_mult'], 4)} | {STAT_EMOJI['luck']} {STAT_RU['luck']}: x{fmt_float(t_stats['luck'], 4)} | {STAT_EMOJI['talent']} {STAT_RU['talent']}: x{fmt_float(t_stats['talent'], 4)}\n"
+    text += f"{STAT_EMOJI['effect_resistance']} {STAT_RU['effect_resistance']}: {t_stats['effect_resistance']:.2f}\n"
+
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 В главное меню", callback_data=MenuCB(action="profile").pack())]
+    ])
+    await message.answer(text, reply_markup=keyboard)
+
+@dp.message(Command("guide"))
+async def cmd_guide(message: Message):
+    text = 'Гайд по игре будет <a href="https://google.com">ЗДЕСЬ</a>'
+    await message.answer(text, parse_mode=ParseMode.HTML)
 
 @dp.message(Command("relive"))
 async def cmd_relive(message: Message):
@@ -3265,6 +3401,7 @@ async def main():
     print("Запуск бота на aiogram 3.x...")
     await load_db()
     asyncio.create_task(background_worker())
+    asyncio.create_task(leaderboard_updater())
     await dp.start_polling(bot)
 
 if __name__ == '__main__':
