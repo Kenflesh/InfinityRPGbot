@@ -48,6 +48,7 @@ GOLD_PER_STAGE = 10
 DUST_PER_BATTLE = 50
 SHOP_BASE_PRICE = 15 * GOLD_PER_STAGE
 ITEM_DROP_CHANCE_FROM_ENEMY = 0.075
+SPELL_DROP_CHANCE = 0.05
 ARCANE_GEOMETRIC_MULT = 0.1
 
 MAX_GUARANTEED_STATS = 5
@@ -2561,7 +2562,7 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
                 result_msg += f"\n\n💰 Найдено золота: {actual_gold}, теперь у вас {player.gold}"
 
                 # Дроп заклинания
-                if enemy.get('spells') and random.random() < 0.05:
+                if enemy.get('spells') and random.random() < SPELL_DROP_CHANCE:
                     dropped = random.choice(enemy['spells']).copy()
                     if len(player.spell_inventory) < 20:
                         player.spell_inventory.append(dropped)
@@ -3715,38 +3716,61 @@ async def menu_spells(query: CallbackQuery, callback_data: MenuCB):
     player = await get_player(query.from_user.id)
 
     text = f"🔮 <b>Магия</b>\n\nАктивные слоты (5):\n"
+    from aiogram.types import InlineKeyboardButton
     from aiogram.utils.keyboard import InlineKeyboardBuilder
-    b = InlineKeyboardBuilder()
 
-    # Кнопки для активных слотов (если не пусто)
+    slot_buttons = []
+    # Формируем текст для слотов и собираем кнопки для занятых слотов
     for i, spell in enumerate(player.active_spells):
         if spell:
             text += f"Слот {i+1}: {spell['name']} (МП:{spell['mp_cost']}, КД:{spell['base_cooldown']:.1f}с, улучш.{spell['upgrades']})\n"
-            b.button(
-                text=f"Слот {i+1}", callback_data=SpellCB(action="view_slot", idx=i, slot=i).pack())
+            slot_buttons.append(
+                InlineKeyboardButton(
+                    text=f"Слот {i+1}",
+                    callback_data=SpellCB(action="view_slot", idx=i, slot=i).pack()
+                )
+            )
         else:
             text += f"Слот {i+1}: Пусто\n"
-            # Можно добавить кнопку для пустого слота, но не обязательно
+            # Для пустых слотов кнопку не добавляем
 
-    text += f"\nИнвентарь заклинаний ({len(player.spell_inventory)}/20):\n"
+    text += f"\n📚 Инвентарь заклинаний ({len(player.spell_inventory)}/20):\n"
 
+    inv_buttons = []
     for i, spell in enumerate(player.spell_inventory):
         passive = " (пасс)" if spell.get('is_passive') else ""
         text += f"{i+1}. {spell['name']}{passive} | МП:{spell['mp_cost']} | КД:{spell['base_cooldown']:.1f}с\n"
-        b.button(text=f"{i+1}",
-                 callback_data=SpellCB(action="view", idx=i).pack())
+        inv_buttons.append(
+            InlineKeyboardButton(
+                text=f"{i+1}",
+                callback_data=SpellCB(action="view", idx=i).pack()
+            )
+        )
 
-    if player.spell_inventory:
-        # подряд 5 кнопок для инвентаря, но у нас ещё есть кнопки слотов, нужно аккуратно
-        b.adjust(5)
-    else:
+    if not player.spell_inventory:
         text += "Пусто"
 
-    # Добавляем кнопки навигации
-    b.row(InlineKeyboardButton(text="🔙 Назад",
-          callback_data=MenuCB(action="profile").pack()))
+    # Строим клавиатуру: сначала ряд(ы) со слотами, потом ряды с инвентарём, потом навигация
+    keyboard_rows = []
 
-    await safe_edit(query.message, text, reply_markup=b.as_markup())
+    # Добавляем ряд со слотами (если есть)
+    if slot_buttons:
+        # Слотов максимум 5, можно поместить все в один ряд
+        keyboard_rows.append(slot_buttons)
+
+    # Добавляем ряды инвентаря по 5 кнопок
+    for i in range(0, len(inv_buttons), 5):
+        keyboard_rows.append(inv_buttons[i:i+5])
+
+    # Добавляем кнопку назад отдельным рядом
+    keyboard_rows.append([
+        InlineKeyboardButton(text="🔙 Назад", callback_data=MenuCB(action="profile").pack())
+    ])
+
+    from aiogram.types import InlineKeyboardMarkup
+    markup = InlineKeyboardMarkup(inline_keyboard=keyboard_rows)
+
+    await safe_edit(query.message, text, reply_markup=markup)
 
 
 @dp.callback_query(SpellCB.filter(F.action == "discard"))
