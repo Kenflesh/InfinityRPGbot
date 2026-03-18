@@ -958,7 +958,7 @@ def generate_effect(effect_type, power, target=None):
             base = power * random.uniform(0.2, 1.0)
         else:
             base = power * random.uniform(0.5, 1.5)
-        effect["base_value"] = int(base) if effect_type in ["shield", "mp_restore", "mp_burn"] else round(base, 1)
+        effect["base_value"] = max(1, fmt_float(base,3)) if effect_type in ["shield", "mp_restore", "mp_burn"] else round(base, 1)
     elif effect_type in ["dot", "hot"]:
         base = power * random.uniform(0.2, 0.5)          # уменьшено
         effect["base_value"] = round(base, 1)
