@@ -350,7 +350,7 @@ CONFIG = {
         "accuracy": 10,
         "evasion_rating": 2,
         "crit_chance": 1.0,        
-        "crit_damage": 125.0,
+        "crit_damage": 150.0,
         "lifesteal": 0.05,
         "thorns": 0.5,             
         "magic_crit_chance": 0.5,   
@@ -395,6 +395,16 @@ ENEMY_CLASSES = {
         "name": "Воин",
         "atkType": "Physical",
         "mult": {
+            "magic_atk": 0.0,
+            "crit_chance": 0.0,
+            "magic_crit_chance": 0.0,
+            "magic_crit_damage": 0.0,
+            "lifesteal": 0.0,
+            "thorns": 0.0,
+            "magic_shield_drain": 0.0,
+            "m_shield": 0.0
+        },
+        "scale_mult": {
             "hp": 1.2,
             "atk": 1.0,
             "magic_atk": 0.2,
@@ -420,6 +430,19 @@ ENEMY_CLASSES = {
         "name": "Маг",
         "atkType": "Magic",
         "mult": {
+            "hp": 0.0,
+            "atk": 0.0,
+            "def": 0.0,
+            "accuracy": 0.0,
+            "evasion_rating": 0.0,
+            "crit_chance": 0.0,
+            "crit_damage": 0.0,
+            "lifesteal": 0.0,
+            "thorns": 0.0,
+            "hp_regen": 0.0,
+            "atk_spd": 0.0
+        },
+        "scale_mult": {
             "hp": 0.25,
             "m_shield": 1.5,
             "magic_atk": 1.5,
@@ -445,6 +468,16 @@ ENEMY_CLASSES = {
         "name": "Берсерк",
         "atkType": "Physical",
         "mult": {
+            "magic_atk": 0.0,
+            "magic_crit_chance": 0.0,
+            "magic_crit_damage": 0.0,
+            "lifesteal": 0.0,
+            "thorns": 0.0,
+            "magic_shield_drain": 0.0,
+            "m_shield": 0.0,
+            "effect_resistance": 0.0
+        },
+        "scale_mult": {
             "hp": 0.5,
             "atk": 2.0,
             "magic_atk": 0.0,
@@ -470,6 +503,16 @@ ENEMY_CLASSES = {
         "name": "Танк",
         "atkType": "Physical",
         "mult": {
+            "magic_atk": 0.0,
+            "evasion_rating": 0.0,
+            "magic_crit_chance": 0.0,
+            "magic_crit_damage": 0.0,
+            "lifesteal": 0.0,
+            "thorns": 0.0,
+            "magic_shield_drain": 0.0,
+            "m_shield": 0.0
+        },
+        "scale_mult": {
             "hp": 2.25,
             "atk": 0.8,
             "magic_atk": 0.0,
@@ -495,6 +538,15 @@ ENEMY_CLASSES = {
         "name": "Ассасин",
         "atkType": "Physical",
         "mult": {
+            "magic_atk": 0.0,
+            "magic_crit_chance": 0.0,
+            "magic_crit_damage": 0.0,
+            "lifesteal": 0.0,
+            "thorns": 0.0,
+            "magic_shield_drain": 0.0,
+            "m_shield": 0.0
+        },
+        "scale_mult": {
             "hp": 0.5,
             "atk": 1.3,
             "magic_atk": 0.0,
@@ -520,6 +572,9 @@ ENEMY_CLASSES = {
         "name": "Вампир",
         "atkType": "Physical",
         "mult": {
+            "thorns": 0.0
+        },
+        "scale_mult": {
             "hp": 1.0,
             "m_shield": 0.25,
             "atk": 1.0,
@@ -545,6 +600,20 @@ ENEMY_CLASSES = {
         "name": "Шипастый",
         "atkType": "Physical",
         "mult": {
+            "magic_atk": 0.0,
+            "atk": 0.0,
+            "accuracy": 0.0,
+            "evasion_rating": 0.0,
+            "crit_chance": 0.0,
+            "crit_damage": 0.0,
+            "lifesteal": 0.0,
+            "magic_crit_chance": 0.0,
+            "magic_crit_damage": 0.0,
+            "magic_shield_drain": 0.0,
+            "m_shield": 0.0,
+            "atk_spd": 0.0
+        },
+        "scale_mult": {
             "hp": 2.5,
             "magic_atk": 0.0,
             "def": 1.5,
@@ -939,7 +1008,7 @@ async def background_worker():
 
                     elif player.state == 'expedition':
                         t_stats = get_total_stats(player)
-                        base_gold = GOLD_PER_STAGE * 20 * player.max_unlocked_difficulty
+                        base_gold = GOLD_PER_STAGE * 40 * player.max_unlocked_difficulty
                         gold_found = int(base_gold * random.uniform(0.1, 3) * t_stats["gold_mult"])
                         player.gold += gold_found
                         msg = f"🧭 Экспедиция завершена!\nВы нашли: 💰 {gold_found} золота."
@@ -1226,7 +1295,8 @@ def generate_enemy(difficulty):
     def variance(): return random.uniform(0.8, 1.2)  # индивидуальный разброс по статам
     class_key = random.choice(list(ENEMY_CLASSES.keys()))
     enemy_class = ENEMY_CLASSES[class_key]
-    class_mult = enemy_class["mult"]
+    base_mult = enemy_class["mult"]  # множитель для базовых значений
+    scale_mult = enemy_class.get("scale_mult", base_mult)  # множитель для прироста за уровень
     atk_type = enemy_class.get("atkType", "Physical")
 
     e_stats = {}
@@ -1235,18 +1305,20 @@ def generate_enemy(difficulty):
                  "magic_crit_chance", "magic_crit_damage", "magic_shield_drain", "m_shield", "effect_resistance"]:
         base = CONFIG["enemy_base_stats"].get(stat, 0)
         scale = CONFIG["enemy_stat_scale"].get(stat, 0)
-        # Применяем: база + сложность*масштаб, умножаем на классовый множитель, на общий множитель силы и на индивидуальную вариацию
-        val = (base + difficulty * scale) * class_mult.get(stat, 1.0) * strength_mult * variance()
+        # Применяем раздельные множители
+        val = (base * base_mult.get(stat, 1.0)) + (difficulty * scale * scale_mult.get(stat, 1.0))
+        val = val * strength_mult * variance()
+        # Для некоторых статов округление до int
         if stat in ["hp", "atk", "def", "magic_atk", "magic_res", "magic_crit_chance", "magic_crit_damage"]:
             e_stats[stat] = max(0, int(val)) if stat not in ["magic_crit_chance", "magic_crit_damage"] else max(0, val)
         else:
             e_stats[stat] = max(0, val)
 
-    e_stats["atk_spd"] = max(0.00, (CONFIG["enemy_base_stats"]["atk_spd"] + difficulty * CONFIG["enemy_stat_scale"]["atk_spd"]) * class_mult.get("atk_spd", 1.0) * strength_mult * variance())
+    e_stats["atk_spd"] = max(0.00, (CONFIG["enemy_base_stats"]["atk_spd"] * base_mult.get("atk_spd", 1.0) + difficulty * CONFIG["enemy_stat_scale"]["atk_spd"] * scale_mult.get("atk_spd", 1.0)) * strength_mult * variance())
     e_stats["max_mp"] = max(0, int(difficulty * 15))
     e_stats["mp"] = e_stats["max_mp"]
 
-    # Генерация заклинаний
+    # Генерация заклинаний (без изменений)
     spells = []
     if class_key == "mage":
         spell_count = 1
@@ -1268,9 +1340,9 @@ def generate_enemy(difficulty):
         spell = generate_spell(class_key, difficulty, e_stats["max_mp"], force_min_effects=1)
         spells.append(spell)
 
-    # Множитель для золота теперь не нужен, оставляем для совместимости, но не используем
+    # Множитель для золота (не используется)
     norm_hp = CONFIG["enemy_base_stats"]["hp"] + (difficulty * CONFIG["enemy_stat_scale"]["hp"])
-    power_multiplier = e_stats["hp"] / (norm_hp if norm_hp > 0 else 1)  # больше не используется
+    power_multiplier = e_stats["hp"] / (norm_hp if norm_hp > 0 else 1)
 
     names = {
         "warrior": ["Воин", "Рыцарь", "Латинец", "Паладин"],
@@ -1313,8 +1385,8 @@ def generate_enemy(difficulty):
         "magic_crit_damage": e_stats["magic_crit_damage"],
         "magic_shield_drain": e_stats["magic_shield_drain"],
         "spells": spells,
-        "power_mult": power_multiplier,  # оставлено для обратной совместимости, но не используется в золоте
-        "strength_mult": strength_mult   # новый множитель силы
+        "power_mult": power_multiplier,
+        "strength_mult": strength_mult
     }
 
 def get_evasion_chance(acc, eva):
@@ -1597,7 +1669,7 @@ def simulate_combat_realtime(player, enemy):
                 effect_copy["duration"] = duration * factor
             effect_copy["end_time"] = t + effect_copy["duration"]
             target_effects_list.append(effect_copy)
-            msg += f"⏸ Остановка времени на {effect_copy['duration']}с"
+            msg += f"⏸ Остановка времени на {fmt_float(effect_copy['duration'], 4)}с"
 
         elif eff_type == "shield":
             if is_player_caster:
@@ -3041,7 +3113,7 @@ async def upg_item(query: CallbackQuery, callback_data: ItemCB):
         return
 
     s_data = item["stats"][stat_key]
-    raw_cost = GOLD_PER_STAGE * 25 * player.max_unlocked_difficulty * s_data.get('upgrade_price_mult', 1.0)
+    raw_cost = GOLD_PER_STAGE * 20 * player.max_unlocked_difficulty * s_data.get('upgrade_price_mult', 1.0)
     upg_cost = max(100, int(raw_cost))
 
     if player.gold >= upg_cost:
@@ -3169,7 +3241,7 @@ async def upgrade_item_rarity(query: CallbackQuery, callback_data: ItemCB):
         #if stat_key in integer_stats:
         #    new_base = max(0.5, round(new_base, 2))
         #else:
-        new_base = max(0.01, round(new_base, 2))
+        new_base = max(0.001, round(new_base, 2))
         stat_data['base'] = new_base
         stat_data['current'] = new_base * (stat_data.get('upgrades', 0) + 1)
     
@@ -3523,16 +3595,16 @@ async def view_spell(query: CallbackQuery, callback_data: SpellCB):
     actual_cost = max(1, int(spell["mp_cost"] * cost_mult + 0.5))
     
     text += f"\n💧 Стоимость маны: {actual_cost}\n"
-    text += f"⏱ Перезарядка: {fmt_float(current_cooldown, 5)}с\n"
+    text += f"⏳ Перезарядка: {fmt_float(current_cooldown, 5)}с\n"
     text += f"🃏 Аркан: {spell.get('arcane', 0)} (прогресс: {spell.get('arcane_progress', 0)}/20)\n"
     text += f"\nВсего улучшений: {spell.get('upgrades', 0)}\n"
 
     # Легенда для кнопок улучшений
     text += "\n<b>Улучшения (тратят 🃏5):</b>\n"
-    text += "💥 — увеличение значения на 10%\n"
-    text += "⚡ — уменьшение интервала на 10%\n"
-    text += "⏱ — увеличение длительности на 10%\n"
-    text += "⏳ — уменьшение перезарядки на 10%\n"
+    text += f"💥 — увеличение значения на {fmt_float(10 * talent, 2)}%\n"
+    text += f"⚡ — уменьшение интервала на {fmt_float(10 * talent, 2)}%\n"
+    text += f"⏱ — увеличение длительности на {fmt_float(10 * talent, 2)}%\n"
+    text += f"⏳ — уменьшение перезарядки на {fmt_float(10 * talent, 2)}%\n"
     text += "\n\nКаждая строка относится к отдельному эффекту заклинания"
 
     from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -3546,7 +3618,7 @@ async def view_spell(query: CallbackQuery, callback_data: SpellCB):
 
     # Кнопка для улучшения перезарядки (отдельная строка)
     b.row(InlineKeyboardButton(
-        text=f"⏱️",
+        text=f"⏳",
         callback_data=SpellEffectCB(action="upgrade", spell_idx=idx, effect_idx=-1, param="cooldown", slot=-1).pack()
     ))
     
@@ -3627,6 +3699,8 @@ async def view_active_spell(query: CallbackQuery, callback_data: SpellCB):
 
     t_stats = get_total_stats(player)
     talent = t_stats.get('talent', 1.0)
+    
+    current_cooldown = spell['base_cooldown'] * ((1 - 0.1 * talent) ** spell.get('cooldown_upgrades', 0))
 
     text = f"🃏 <b>{spell['name']}</b> (активный слот {slot+1})\n"
     text += f"📖 Описание:\n"
@@ -3662,17 +3736,16 @@ async def view_active_spell(query: CallbackQuery, callback_data: SpellCB):
     actual_cost = max(1, int(spell["mp_cost"] * cost_mult + 0.5))
     
     text += f"\n💧 Стоимость маны: {actual_cost}\n"
-    current_cooldown = spell['base_cooldown'] * ((1 - 0.1 * talent) ** spell.get('cooldown_upgrades', 0))
-    text += f"⏱ Перезарядка: {fmt_float(current_cooldown, 5)}с\n"
+    text += f"⏳ Перезарядка: {fmt_float(current_cooldown, 5)}с\n"
     text += f"🃏 Аркан: {spell.get('arcane', 0)} (прогресс: {spell.get('arcane_progress', 0)}/20)\n"
     text += f"\nВсего улучшений: {spell.get('upgrades', 0)}\n"
 
     # Легенда для кнопок улучшений
     text += "\n<b>Улучшения (тратят 🃏5):</b>\n"
-    text += "💥 — увеличение значения на 10%\n"
-    text += "⚡ — уменьшение интервала на 10%\n"
-    text += "⏱ — увеличение длительности на 10%\n"
-    text += "⏳ — уменьшение перезарядки на 10%\n"
+    text += f"💥 — увеличение значения на {fmt_float(10 * talent, 2)}%\n"
+    text += f"⚡ — уменьшение интервала на {fmt_float(10 * talent, 2)}%\n"
+    text += f"⏱ — увеличение длительности на {fmt_float(10 * talent, 2)}%\n"
+    text += f"⏳ — уменьшение перезарядки на {fmt_float(10 * talent, 2)}%\n"
     text += "\n\nКаждая строка относится к отдельному эффекту заклинания"
     
 
@@ -3687,7 +3760,7 @@ async def view_active_spell(query: CallbackQuery, callback_data: SpellCB):
 
     # Кнопка для улучшения перезарядки
     b.row(InlineKeyboardButton(
-        text=f"⏱️",
+        text=f"⏳",
         callback_data=SpellEffectCB(action="upgrade", spell_idx=-1, effect_idx=-1, param="cooldown", slot=slot).pack()
     ))
     
