@@ -3194,13 +3194,13 @@ async def view_active_spell(query: CallbackQuery, callback_data: SpellCB):
         elif eff['type'] == 'heal':
             line += f"Лечит {eff['base_value']:.1f} HP {target}"
         elif eff['type'] == 'dot':
-            line += f"Наносит {eff['base_value']:.1f} урона каждые {eff['interval']}с (вечно) {target}"
+            line += f"Наносит {eff['base_value']:.1f} урона каждые {eff['interval']}с {target}"
         elif eff['type'] == 'hot':
-            line += f"Лечит {eff['base_value']:.1f} HP каждые {eff['interval']}с (вечно) {target}"
+            line += f"Лечит {eff['base_value']:.1f} HP каждые {eff['interval']}с {target}"
         elif eff['type'] == 'buff':
-            line += f"Увеличивает {STAT_RU.get(eff['stat'], eff['stat'])} на {eff['base_value']*100:.1f}% (вечно) {target}"
+            line += f"Увеличивает {STAT_RU.get(eff['stat'], eff['stat'])} на {eff['base_value']*100:.1f}% {target}"
         elif eff['type'] == 'debuff':
-            line += f"Уменьшает {STAT_RU.get(eff['stat'], eff['stat'])} на {eff['base_value']*100:.1f}% (вечно) {target}"
+            line += f"Уменьшает {STAT_RU.get(eff['stat'], eff['stat'])} на {eff['base_value']*100:.1f}% {target}"
         elif eff['type'] == 'shield':
             line += f"Даёт {eff['base_value']:.2f} магического щита {target}"
         elif eff['type'] == 'time_stop':
