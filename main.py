@@ -1926,7 +1926,7 @@ async def safe_edit(message: Message, text: str, reply_markup: InlineKeyboardMar
         if "message is not modified" not in str(e):
             raise
 
-# ===================== ПРОСМОТР ПРЕДМЕТА (без изменений, но добавим новые статы в описание) =====================
+# ===================== ПРОСМОТР ПРЕДМЕТА =====================
 
 async def get_item_view_data(player: Player, global_idx: int):
     item, is_equip, slot_or_idx = get_item_by_global_index(player, global_idx)
@@ -1972,7 +1972,7 @@ async def get_item_view_data(player: Player, global_idx: int):
     text += f"\n🔮 Пыль душ: {dust} | Боёв: {battle_count}/{DUST_PER_BATTLE}\n"
     if dust > 0:
         text += f"\n🎲 Вы можете сбросить выбранный стат, потратив 1 пыль\nЭто сбросит кол-во улучшений этого стата и даст вам новый, случайный стат вместо него\n"
-
+    
     if dust > 0:
         b.row(InlineKeyboardButton(text=f"✨ Использовать пыль душ", callback_data=ItemCB(action="upgrade_rarity", idx=global_idx).pack()))
 
@@ -1985,10 +1985,67 @@ async def get_item_view_data(player: Player, global_idx: int):
         elif len(allowed_slots) > 1:
             b.row(InlineKeyboardButton(text="🔧 Выбрать слот", callback_data=ItemCB(action="choose_slot", idx=global_idx).pack()))
         b.row(InlineKeyboardButton(text=f"Продать (💰 {item['sell_price']})", callback_data=ItemCB(action="sell", idx=global_idx).pack()))
+    
+    if not is_equip:
+        allowed_slots = ITEM_TYPE_TO_SLOTS.get(item['item_type'], [])
+        if allowed_slots:
+            b.row(InlineKeyboardButton(text="🔍 Сравнить с надетым", callback_data=ItemCB(action="compare", idx=global_idx).pack()))
 
     b.row(InlineKeyboardButton(text="🔙 Назад", callback_data=MenuCB(action="inv").pack()))
 
     return text, b.as_markup()
+
+@dp.callback_query(ItemCB.filter(F.action == "compare"))
+async def compare_item(query: CallbackQuery, callback_data: ItemCB):
+    player = await get_player(query.from_user.id)
+    global_idx = callback_data.idx
+    item, is_equip, slot_or_idx = get_item_by_global_index(player, global_idx)
+    if not item:
+        await query.answer("Предмет не найден!")
+        return
+
+    slots = ITEM_TYPE_TO_SLOTS.get(item['item_type'], [])
+    if not slots:
+        await query.answer("Для этого предмета нет соответствующих слотов.")
+        return
+
+    text = f"<b>Сравнение с экипированным</b>\n\n"
+    shown_items = set()
+    for slot in slots:
+        slot_item = player.equip.get(slot)
+        if slot_item:
+            item_id = slot_item.get('id')
+            if item_id in shown_items:
+                continue
+            shown_items.add(item_id)
+            slot_name = SLOT_RU.get(slot, slot)
+            text += f"<b>[{slot_name}]</b>\n"
+            text += f"📦 <b>{slot_item['name']}</b>\nТип: {ITEM_TYPE_RU.get(slot_item['item_type'], slot_item['item_type'])}\n\nХарактеристики:\n"
+            for stat_key, stat_data in slot_item['stats'].items():
+                is_percent = stat_key in PERCENT_STATS
+                s_ru = f"{STAT_EMOJI.get(stat_key, '')} {STAT_RU.get(stat_key, stat_key)}"
+                bonus_type = stat_data.get('bonus_type', 'flat')
+                bonus_symbol = '%' if bonus_type == 'percent' else ''
+                curr_str = fmt_float(stat_data['current'], 4)
+                base_str = fmt_float(stat_data['base'], 4)
+                text += f"• {s_ru}: {curr_str}{bonus_symbol} (база {base_str}{bonus_symbol}, улучшений {stat_data['upgrades']})\n"
+            text += f"\n🔮 Пыль душ: {slot_item.get('dust', 0)}\n\n"
+        else:
+            slot_name = SLOT_RU.get(slot, slot)
+            text += f"<b>[{slot_name}]</b> пусто\n\n"
+
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    close_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Я посмотрел", callback_data=ActionCB(action="close_compare").pack())]
+    ])
+
+    await query.message.answer(text, parse_mode=ParseMode.HTML, reply_markup=close_kb)
+    await query.answer()
+
+@dp.callback_query(ActionCB.filter(F.action == "close_compare"))
+async def close_compare_message(query: CallbackQuery):
+    await query.message.delete()
+    await query.answer()
 
 # ===================== ОБРАБОТЧИКИ КОМАНД =====================
 
