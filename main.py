@@ -2249,7 +2249,7 @@ async def cb_check_time(query: CallbackQuery, callback_data: ActionCB):
                      "dead": "мертвы"}.get(player.state, player.state)
         await query.answer(f"Вы {state_rus}. Осталось: {minutes} мин {seconds} сек.", show_alert=True)
     else:
-        await query.answer("Вы сейчас не заняты.", show_alert=True)
+        await query.answer("Вы сейчас не заняты.", show_alert=False)
 
 
 @dp.callback_query()
