@@ -1083,7 +1083,10 @@ def generate_spell(enemy_class_key, power, max_mp, force_min_effects=1):
 # ===================== ГЕНЕРАЦИЯ ВРАГА =====================
 
 def generate_enemy(difficulty):
-    def variance(): return random.uniform(0.7, 1.2)
+    # Общий множитель силы врага (от 0.5 до 2.0)
+    strength_mult = random.uniform(0.5, 2.0)
+    
+    def variance(): return random.uniform(0.8, 1.2)  # индивидуальный разброс по статам
     class_key = random.choice(list(ENEMY_CLASSES.keys()))
     enemy_class = ENEMY_CLASSES[class_key]
     class_mult = enemy_class["mult"]
@@ -1095,13 +1098,14 @@ def generate_enemy(difficulty):
                  "magic_crit_chance", "magic_crit_damage", "magic_shield_drain", "m_shield", "effect_resistance"]:
         base = CONFIG["enemy_base_stats"].get(stat, 0)
         scale = CONFIG["enemy_stat_scale"].get(stat, 0)
-        val = (base + difficulty * scale) * variance() * class_mult.get(stat, 1.0)
+        # Применяем: база + сложность*масштаб, умножаем на классовый множитель, на общий множитель силы и на индивидуальную вариацию
+        val = (base + difficulty * scale) * class_mult.get(stat, 1.0) * strength_mult * variance()
         if stat in ["hp", "atk", "def", "magic_atk", "magic_res", "magic_crit_chance", "magic_crit_damage"]:
             e_stats[stat] = max(0, int(val)) if stat not in ["magic_crit_chance", "magic_crit_damage"] else max(0, val)
         else:
             e_stats[stat] = max(0, val)
 
-    e_stats["atk_spd"] = max(0.00, (CONFIG["enemy_base_stats"]["atk_spd"] + difficulty * CONFIG["enemy_stat_scale"]["atk_spd"]) * variance() * class_mult.get("atk_spd", 1.0))
+    e_stats["atk_spd"] = max(0.00, (CONFIG["enemy_base_stats"]["atk_spd"] + difficulty * CONFIG["enemy_stat_scale"]["atk_spd"]) * class_mult.get("atk_spd", 1.0) * strength_mult * variance())
     e_stats["max_mp"] = max(0, int(difficulty * 15))
     e_stats["mp"] = e_stats["max_mp"]
 
@@ -1127,8 +1131,9 @@ def generate_enemy(difficulty):
         spell = generate_spell(class_key, difficulty, e_stats["max_mp"], force_min_effects=1)
         spells.append(spell)
 
+    # Множитель для золота теперь не нужен, оставляем для совместимости, но не используем
     norm_hp = CONFIG["enemy_base_stats"]["hp"] + (difficulty * CONFIG["enemy_stat_scale"]["hp"])
-    power_multiplier = e_stats["hp"] / (norm_hp if norm_hp > 0 else 1)
+    power_multiplier = e_stats["hp"] / (norm_hp if norm_hp > 0 else 1)  # больше не используется
 
     names = {
         "warrior": ["Воин", "Рыцарь", "Латинец", "Паладин"],
@@ -1146,11 +1151,11 @@ def generate_enemy(difficulty):
         "name": name,
         "class": enemy_class["name"],
         "class_key": class_key,
-        "atk_type": atk_type,     
+        "atk_type": atk_type,
         "difficulty": difficulty,
-        "max_hp": e_stats["hp"],          # уже есть
+        "max_hp": e_stats["hp"],
         "hp": e_stats["hp"],
-        "max_mp": e_stats["max_mp"],      # добавляем
+        "max_mp": e_stats["max_mp"],
         "mp": e_stats["mp"],
         "m_shield": e_stats["m_shield"],
         "atk": e_stats["atk"],
@@ -1171,9 +1176,9 @@ def generate_enemy(difficulty):
         "magic_crit_damage": e_stats["magic_crit_damage"],
         "magic_shield_drain": e_stats["magic_shield_drain"],
         "spells": spells,
-        "power_mult": power_multiplier
+        "power_mult": power_multiplier,  # оставлено для обратной совместимости, но не используется в золоте
+        "strength_mult": strength_mult   # новый множитель силы
     }
-
 
 def get_evasion_chance(acc, eva):
     if acc+eva == 0:
@@ -2406,8 +2411,8 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
                         result_msg += "\n\n📦 Предмет выпал, но инвентарь полон!"
     
                 base_gold = GOLD_PER_STAGE * player.current_difficulty
-                adjusted_power_mult = max(0.75, enemy['power_mult'])
-                actual_gold = int(base_gold * adjusted_power_mult * t_stats["gold_mult"])
+                actual_gold = int(base_gold * enemy['strength_mult'] * t_stats["gold_mult"])
+                
                 player.gold += actual_gold
     
                 result_msg += f"\n\n💰 Найдено золота: {actual_gold}, теперь у вас {player.gold}"
