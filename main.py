@@ -3231,7 +3231,7 @@ async def view_active_spell(query: CallbackQuery, callback_data: SpellCB):
             b.row(btn)
 
     b.row(InlineKeyboardButton(
-        text=f"⏱️ Кулдаун -10% (🔮5)",
+        text=f"⏱️ Перезарядка -10% (🔮5)",
         callback_data=SpellEffectCB(action="upgrade", spell_idx=-1, effect_idx=-1, param="cooldown", slot=slot).pack()
     ))
     
