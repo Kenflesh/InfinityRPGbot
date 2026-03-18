@@ -15,6 +15,7 @@ from aiogram.filters.callback_data import CallbackData
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.dispatcher.event.bases import SkipHandler
+from aiogram.exceptions import TelegramBadRequest, TelegramRetryAfter
 
 TOKEN = os.getenv("BOT_TOKEN")
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
@@ -1772,6 +1773,9 @@ def training_complete_kbd(stat: str):
 async def safe_edit(message: Message, text: str, reply_markup: InlineKeyboardMarkup = None):
     try:
         await message.edit_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+    except TelegramRetryAfter as e:
+        await asyncio.sleep(e.retry_after)
+        await safe_edit(message, text, reply_markup)
     except TelegramBadRequest as e:
         if "message is not modified" not in str(e):
             raise
