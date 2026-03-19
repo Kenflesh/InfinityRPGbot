@@ -2129,8 +2129,7 @@ async def get_item_view_data(player: Player, global_idx: int):
     text += f"\n🔮 Пыль душ: {dust} | Боёв: {battle_count}/{DUST_PER_BATTLE}\n"
     if dust > 0:
         text += f"\n🎲 Вы можете сбросить выбранный стат, потратив 1 пыль\nЭто сбросит кол-во улучшений этого стата и даст вам новый, случайный стат вместо него\n"
-    
-    if dust > 0:
+        text += f"\n\nЧувствуешь, что пыль слаба?\nВозможно, тебе не хватает {STAT_EMOJI['talent']} Таланта, чтобы использовать её правильно"
         b.row(InlineKeyboardButton(text=f"✨ Использовать пыль душ", callback_data=ItemCB(action="upgrade_rarity", idx=global_idx).pack()))
 
     if is_equip:
@@ -3620,6 +3619,9 @@ async def view_spell(query: CallbackQuery, callback_data: SpellCB):
     text += f"⏱ — увеличение длительности на {fmt_float(10 * talent, 2)}%\n"
     text += f"⏳ — уменьшение перезарядки на {fmt_float(10 * talent, 2)}%\n"
     text += "\n\nКаждая строка относится к отдельному эффекту заклинания"
+
+    if spell['arcane'] > 0:
+        text += f"\n\nДумаешь, арканы дают слишком мало?\nВозможно тебе просто не хватвает {STAT_EMOJI['talent']} Таланта"
 
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     b = InlineKeyboardBuilder()
