@@ -1215,14 +1215,14 @@ def generate_effect(effect_type, power, target=None):
     }
     if effect_type in ["damage", "heal", "shield", "mp_restore", "mp_burn"]:
         if effect_type == "heal":
-            base = power * random.uniform(0.2, 1.0)
+            base = power * random.uniform(1, 2.0)
         else:
-            base = power * random.uniform(0.5, 1.5)
+            base = power * random.uniform(1, 2.5)
         effect["base_value"] = round(max(1.0, base), 1) if effect_type in ["shield", "mp_restore", "mp_burn"] else round(base, 1)
     elif effect_type in ["dot", "hot"]:
         base = power * random.uniform(0.2, 0.5)          # зависит от силы
         effect["base_value"] = round(base, 1)
-        effect["interval"] = random.choice([1, 2, 3])
+        effect["interval"] = random.uniform(3, 10)
     elif effect_type in ["buff", "debuff"]:
         # Не зависит от силы врага (фиксированный диапазон 2–10%)
         base = random.uniform(0.02, 0.1)
