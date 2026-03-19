@@ -790,7 +790,7 @@ class Player:
         self.uid = str(uid)
         self.name = name
         self.username = None
-        self.gold = 100
+        self.gold = 1250
         self.shop_assortment = []
         self.shop_last_update = 0
         self.potion_shop_assortment = []
@@ -2563,7 +2563,7 @@ async def menu_train(query: CallbackQuery, callback_data: MenuCB):
         text += f"<b>{stat_name}</b> +{fmt_float(increment)} ({fmt_float(real_gain)})\n"
         builder.button(text=f"{STAT_EMOJI.get(stat, '')}", callback_data=TrainCB(stat=stat).pack())
 
-    text = f"\n\nПолучаете слишком мало статов за тренировки и зелья?\nПохоже, вам придётся {STAT_EMOJI["adaptability"]} Адаптироваться"
+    text += f"\n\nПолучаете слишком мало статов за тренировки и зелья?\nПохоже, вам придётся {STAT_EMOJI['adaptability']} Адаптироваться"
 
     builder.adjust(3)
 
@@ -3373,7 +3373,7 @@ async def menu_shop(query: CallbackQuery, callback_data: MenuCB):
             action="buy_it", idx=original_idx).pack())
         btn_num += 1
 
-    text = f"\n\nПопадаются только слабые предметы?\nВозможно, тебе просто не повезло, и тебе не хватает {STAT_EMOJI["luck"]} Удачи?"
+    text += f"\n\nПопадаются только слабые предметы?\nВозможно, тебе просто не повезло, и тебе не хватает {STAT_EMOJI['luck']} Удачи?"
 
     b.adjust(5)
     
@@ -3483,7 +3483,7 @@ async def menu_potions(query: CallbackQuery, callback_data: MenuCB):
         idx += 1
     
 
-    text = f"\n\nСлишком дорогие цены в магазинах?\nВозможно, ты просто мало {STAT_EMOJI["gold_mult"]} зарабатываешь?"
+    text += f"\n\nСлишком дорогие цены в магазинах?\nВозможно, ты просто мало {STAT_EMOJI['gold_mult']} зарабатываешь?"
 
     b.adjust(5)
     b.row(InlineKeyboardButton(text="🔙 Назад",
