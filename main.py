@@ -1479,8 +1479,9 @@ def simulate_combat_realtime(player, enemy):
 
     # Множители от баффов/дебаффов (длятся весь бой)
     p_multipliers = {stat: 1.0 for stat in ["atk", "def", "magic_atk", "magic_res", "atk_spd",
-                                             "crit_chance", "crit_damage", "magic_crit_chance", "magic_crit_damage"]}
+    "crit_chance", "crit_damage", "magic_crit_chance", "magic_crit_damage","effect_resistance"]}
     e_multipliers = p_multipliers.copy()
+
 
     # Перезарядки заклинаний игрока (время готовности)
     spell_cooldowns = [0.0] * 5
@@ -3618,7 +3619,7 @@ async def view_spell(query: CallbackQuery, callback_data: SpellCB):
     text += f"⚡ — уменьшение интервала на {fmt_float(10 * talent, 2)}%\n"
     text += f"⏱ — увеличение длительности на {fmt_float(10 * talent, 2)}%\n"
     text += f"⏳ — уменьшение перезарядки на {fmt_float(10 * talent, 2)}%\n"
-    text += "\n\nКаждая строка относится к отдельному эффекту заклинания"
+    text += "\n\nКаждая строка относится к отдельному эффекту заклинания, кроме перезарядки, которая влияет на всё заклинание в целом"
 
     if spell['arcane'] > 0:
         text += f"\n\nДумаешь, арканы дают слишком мало?\nВозможно тебе просто не хватвает {STAT_EMOJI['talent']} Таланта"
@@ -3762,9 +3763,8 @@ async def view_active_spell(query: CallbackQuery, callback_data: SpellCB):
     text += f"⚡ — уменьшение интервала на {fmt_float(10 * talent, 2)}%\n"
     text += f"⏱ — увеличение длительности на {fmt_float(10 * talent, 2)}%\n"
     text += f"⏳ — уменьшение перезарядки на {fmt_float(10 * talent, 2)}%\n"
-    text += "\n\nКаждая строка относится к отдельному эффекту заклинания"
+    text += "\n\nКаждая строка относится к отдельному эффекту заклинания, кроме перезарядки, которая влияет на всё заклинание в целом"
     
-
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     b = InlineKeyboardBuilder()
 
