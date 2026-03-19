@@ -45,14 +45,17 @@ leaderboard_cache = {
 #Константы
 KILLS_TO_UNLOCK_NEXT = 25
 
-GOLD_PER_STAGE = 10
-DUST_PER_BATTLE = 50
+GOLD_PER_STAGE = 25
+RELIVE_COST = 10
+RARITY_POWER = 0.5
+DUST_PER_BATTLE = 25
 SHOP_BASE_PRICE = 15 * GOLD_PER_STAGE
 ITEM_DROP_CHANCE_FROM_ENEMY = 0.075
 SPELL_DROP_CHANCE = 0.05
 ARCANE_GEOMETRIC_MULT = 0.1
 
-ENEMY_SCALE_GROWTH_PER_LEVEL = 0.05
+ENEMY_SCALE_GROWTH_PER_LEVEL = 0.025
+ENEMY_SPELL_CHANCE = 0.25
 
 MAX_GUARANTEED_STATS = 5
 MAX_STATS_COUNT = 10
@@ -87,8 +90,8 @@ STAT_EMOJI = {
     "atk": "🗡️", "def": "🛡️", "m_shield": "🪬",
     "crit_chance": "💥", "crit_damage": "💢", "accuracy": "🎯", "evasion_rating": "💨",
     "atk_spd": "⚡", "hp_regen": "💊", "mp_regen": "🔮",
-    "gold_mult": "💰", "luck": "🍀", "talent": "🎓","lifesteal": "🩸", "armor_pen": "🪓",
-    "magic_atk": "🪄", "magic_res": "🌀", "magic_efficiency": "🔹", "thorns": "🌵", "adaptability": "🌟",
+    "adaptability": "🌟", "gold_mult": "💰", "luck": "🍀", "talent": "🎓","lifesteal": "🩸", "armor_pen": "🪓",
+    "magic_atk": "🪄", "magic_res": "🌀", "magic_efficiency": "🔹", "thorns": "🌵",
     "magic_crit_chance": "✨", "magic_crit_damage": "💫", "magic_shield_drain": "🔋", "effect_resistance":"🧿"
 }
 
@@ -124,7 +127,7 @@ SLOT_RU = {
 
 #Кол-во статов получаемых за 1 тренировку
 TRAINING_INCREMENTS = {
-    "adaptability": 0.005,
+    "adaptability": 0.01,
     "max_hp": 3.0,
     "max_mp": 3.0,
     "m_shield": 2.0,
@@ -943,11 +946,11 @@ async def check_and_complete_state(player):
             gold_found = int(base_gold * random.uniform(1, 3) * t_stats["gold_mult"])
             player.gold += gold_found
             msg = f"🧭 Экспедиция завершена!\nВы нашли: 💰 {gold_found} золота."
-            gold_mult = 0.4
+            item_chance = 1.0
             items_found = 0
-            while random.random() < gold_mult and items_found < 3:
+            while random.random() < item_chance and items_found < 5:
                 item_type = random.choice(ITEM_TYPES)
-                rarity = max(1, player.max_unlocked_difficulty * t_stats["gold_mult"])
+                rarity = max(1, player.max_unlocked_difficulty * t_stats["luck"])
                 item = generate_item(item_type, rarity, player.max_unlocked_difficulty)
                 if len(player.inventory) < player.inv_slots:
                     player.inventory.append(item)
@@ -956,7 +959,7 @@ async def check_and_complete_state(player):
                 else:
                     msg += "\n📦 Инвентарь полон, предмет потерян!"
                     break
-                gold_mult *= 0.5
+                item_chance *= 0.5
             player.state = 'idle'
             try:
                 await bot.send_message(player.uid, msg, reply_markup=main_menu_kbd())
@@ -1133,7 +1136,7 @@ def generate_single_stat(stat: str, item_type: str, rarity: float):
     stat_mult = STAT_BASE_ITEM_MULTIPLIERS
     mult = stat_mult.get(stat, 1.0)
 
-    raw = (rarity * 0.5 * random.uniform(0.8, 1.2)) * mult
+    raw = (rarity * RARITY_POWER * random.uniform(0.8, 1.2)) * mult
     if "weapon2h" in item_type:
         raw *= TWOHAND_MULTIPLIER
     elif item_type == "tome2h":
@@ -1169,11 +1172,11 @@ def generate_potion(difficulty):
     # Генерация значения эффекта
     if stat == "adaptability":
         if is_percent:
-            # Процентное зелье адаптивности: от 0.1% до 0.5%
+            # Процентное зелье адаптивности: от 0.1% до 0.3%
             value = round(random.uniform(0.1, 0.2), 1)
         else:
             # Плоское зелье адаптивности: от 0.001 до 0.005
-            value = round(random.uniform(0.001, 0.005), 3)
+            value = round(random.uniform(0.01, 0.02), 3)
     else:
         if is_percent:
             # Процентные зелья для остальных статов: от 0.1% до 1.0%
@@ -1181,7 +1184,7 @@ def generate_potion(difficulty):
         else:
             # Аддитивные зелья: эквивалент 1–3 тренировок
             base_inc = TRAINING_INCREMENTS.get(stat, 0.01)
-            raw_value = random.uniform(1, 3) * base_inc
+            raw_value = random.uniform(1, 4) * base_inc
             value = round(raw_value, 2)
 
     # Цена зависит от сложности (чем выше угроза, тем дороже)
@@ -1289,53 +1292,57 @@ def generate_spell(enemy_class_key, power, max_mp, force_min_effects=1):
 # ===================== ГЕНЕРАЦИЯ ВРАГА =====================
 
 def generate_enemy(difficulty):
-    # Общий множитель силы врага (от 0.5 до 2.0)
-    strength_mult = random.uniform(0.5, 2.0)
-    
-    def variance(): return random.uniform(0.8, 1.2)  # индивидуальный разброс по статам
+    # Случайный множитель силы (влияет только на прирост от уровня, не на базу)
+    strength_mult = random.uniform(0.9, 1.1)
+    base_stats_random_mult = random.uniform(0.8, 1.05)
+
+    # Выбор класса врага
     class_key = random.choice(list(ENEMY_CLASSES.keys()))
     enemy_class = ENEMY_CLASSES[class_key]
-    base_mult = enemy_class["mult"]  # множитель для базовых значений
+    base_mult = enemy_class["mult"]               # множитель для базовых значений
     scale_mult = enemy_class.get("scale_mult", base_mult)  # множитель для прироста за уровень
     atk_type = enemy_class.get("atkType", "Physical")
 
-    # Эффективный уровень с учётом дополнительного роста
+    # Эффективный уровень с учётом дополнительного роста (аналог адаптивности игрока)
     growth = ENEMY_SCALE_GROWTH_PER_LEVEL
     effective_difficulty = difficulty * (1 + growth * (difficulty - 1))
 
+    # Список всех статов врага (включая atk_spd)
+    stat_list = [
+        "hp", "atk", "def", "magic_atk", "magic_res", "accuracy", "evasion_rating",
+        "crit_chance", "crit_damage", "lifesteal", "thorns", "hp_regen", "mp_regen",
+        "magic_crit_chance", "magic_crit_damage", "magic_shield_drain", "m_shield",
+        "effect_resistance", "atk_spd"
+    ]
+
     e_stats = {}
-    for stat in ["hp", "atk", "def", "magic_atk", "magic_res", "accuracy", "evasion_rating",
-                 "crit_chance", "crit_damage", "lifesteal", "thorns", "hp_regen", "mp_regen",
-                 "magic_crit_chance", "magic_crit_damage", "magic_shield_drain", "m_shield", "effect_resistance"]:
+    for stat in stat_list:
         base = CONFIG["enemy_base_stats"].get(stat, 0)
         scale = CONFIG["enemy_stat_scale"].get(stat, 0)
-        # Применяем раздельные множители
-        val = (base * base_mult.get(stat, 1.0)) + (effective_difficulty * scale * scale_mult.get(stat, 1.0))
-        val = val * strength_mult * variance()
-        # Для некоторых статов округление до int
-        if stat in ["hp", "atk", "def", "magic_atk", "magic_res", "magic_crit_chance", "magic_crit_damage"]:
-            e_stats[stat] = max(0, int(val)) if stat not in ["magic_crit_chance", "magic_crit_damage"] else max(0, val)
-        else:
-            e_stats[stat] = max(0, val)
 
-    e_stats["atk_spd"] = max(0.00, (CONFIG["enemy_base_stats"]["atk_spd"] * base_mult.get("atk_spd", 1.0) + effective_difficulty * CONFIG["enemy_stat_scale"]["atk_spd"] * scale_mult.get("atk_spd", 1.0)) * strength_mult * variance())
+        # Расчёт: база * множитель базы + (эффективный уровень * скейл * множитель скейла * случайный разброс)
+        val = (base * base_mult.get(stat, 1.0) * base_stats_random_mult) + (effective_difficulty * scale * scale_mult.get(stat, 1.0) * strength_mult)
+        e_stats[stat] = max(0.0, val)
+
+    # Мана считается отдельно: линейно от уровня, без множителей класса
     e_stats["max_mp"] = max(0, int(effective_difficulty * 15))
     e_stats["mp"] = e_stats["max_mp"]
 
-    # Генерация заклинаний (без изменений)
+    # Генерация заклинаний (шанс на дополнительное заклинание — 25%)
     spells = []
+    spell_chance = ENEMY_SPELL_CHANCE
     if class_key == "mage":
         spell_count = 1
-        if random.random() < 0.25:
+        if random.random() < spell_chance:
             spell_count = 2
-            if random.random() < 0.25:
+            if random.random() < spell_chance:
                 spell_count = 3
     else:
-        if random.random() < 0.25:
+        if random.random() < spell_chance:
             spell_count = 1
-            if random.random() < 0.25:
+            if random.random() < spell_chance:
                 spell_count = 2
-                if random.random() < 0.25:
+                if random.random() < spell_chance:
                     spell_count = 3
         else:
             spell_count = 0
@@ -1344,10 +1351,7 @@ def generate_enemy(difficulty):
         spell = generate_spell(class_key, difficulty, e_stats["max_mp"], force_min_effects=1)
         spells.append(spell)
 
-    # Множитель для золота (не используется)
-    norm_hp = CONFIG["enemy_base_stats"]["hp"] + (difficulty * CONFIG["enemy_stat_scale"]["hp"])
-    power_multiplier = e_stats["hp"] / (norm_hp if norm_hp > 0 else 1)
-
+    # Генерация имени врага
     names = {
         "warrior": ["Воин", "Рыцарь", "Латинец", "Паладин"],
         "mage": ["Маг", "Чародей", "Волшебник", "Заклинатель"],
@@ -1389,7 +1393,6 @@ def generate_enemy(difficulty):
         "magic_crit_damage": e_stats["magic_crit_damage"],
         "magic_shield_drain": e_stats["magic_shield_drain"],
         "spells": spells,
-        "power_mult": power_multiplier,
         "strength_mult": strength_mult
     }
 
@@ -1406,7 +1409,7 @@ async def update_shop(player, force=False):
     if force or now - player.shop_last_update > CONFIG["time_shop_update"]:
         t_stats = get_total_stats(player)
         player.shop_assortment = []
-        rarity = (player.max_unlocked_difficulty + 5.0) * t_stats["luck"]
+        rarity = (player.max_unlocked_difficulty + 10.0) * t_stats["luck"]
         for _ in range(5):
             item_type = random.choice(ITEM_TYPES)
             item = generate_item(item_type, rarity, player.max_unlocked_difficulty)
@@ -2560,6 +2563,8 @@ async def menu_train(query: CallbackQuery, callback_data: MenuCB):
         text += f"<b>{stat_name}</b> +{fmt_float(increment)} ({fmt_float(real_gain)})\n"
         builder.button(text=f"{STAT_EMOJI.get(stat, '')}", callback_data=TrainCB(stat=stat).pack())
 
+    text = f"\n\nПолучаете слишком мало статов за тренировки и зелья?\nПохоже, вам придётся {STAT_EMOJI["adaptability"]} Адаптироваться"
+
     builder.adjust(3)
 
     nav_row = []
@@ -3143,7 +3148,7 @@ def recalc_sell_price(item):
     for st, st_data in item["stats"].items():
         is_perc = st in PERCENT_STATS
         base_price += int(st_data["base"] * (100 if is_perc else 10))
-    item["sell_price"] = max(10, int(base_price * 0.25))
+    item["sell_price"] = max(10, int(base_price * 0.3))
 
 @dp.callback_query(ItemCB.filter(F.action == "reroll"))
 async def reroll_item(query: CallbackQuery, callback_data: ItemCB):
@@ -3342,7 +3347,7 @@ async def sell_mass_price_input(message: Message, state: FSMContext):
 @dp.callback_query(MenuCB.filter(F.action == "shop"))
 async def menu_shop(query: CallbackQuery, callback_data: MenuCB):
     player = await get_player(query.from_user.id)
-    # Обновляем магазин только если refresh=True или ассортимент пуст
+    
     if callback_data.refresh or not player.shop_assortment:
         await update_shop(player)
 
@@ -3368,10 +3373,12 @@ async def menu_shop(query: CallbackQuery, callback_data: MenuCB):
             action="buy_it", idx=original_idx).pack())
         btn_num += 1
 
+    text = f"\n\nПопадаются только слабые предметы?\nВозможно, тебе просто не повезло, и тебе не хватает {STAT_EMOJI["luck"]} Удачи?"
+
     b.adjust(5)
     
     if player.state == 'dead':
-        cost = GOLD_PER_STAGE * 25 * player.max_unlocked_difficulty
+        cost = GOLD_PER_STAGE * RELIVE_COST * player.max_unlocked_difficulty
         b.row(InlineKeyboardButton(text=f"💀 Воскреситься (💰 {cost})", callback_data=ShopCB(action="revive").pack()))
 
     b.row(InlineKeyboardButton(text="🔙 Назад",
@@ -3474,6 +3481,9 @@ async def menu_potions(query: CallbackQuery, callback_data: MenuCB):
         text += f"{idx}. {STAT_EMOJI.get(stat, '')} {STAT_RU[stat]} +{fmt_float(display)}{unit} ({fmt_float(current_val)} → {fmt_float(future_val)}) — 💰 {pot['price']}\n"
         b.button(text=f"{idx}", callback_data=PotionCB(action="buy", idx=i).pack())
         idx += 1
+    
+
+    text = f"\n\nСлишком дорогие цены в магазинах?\nВозможно, ты просто мало {STAT_EMOJI["gold_mult"]} зарабатываешь?"
 
     b.adjust(5)
     b.row(InlineKeyboardButton(text="🔙 Назад",
