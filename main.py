@@ -2066,42 +2066,15 @@ def training_complete_kbd(stat: str):
     builder.adjust(1)  # кнопки в столбик (можно изменить на 2, если нужно)
     return builder.as_markup()
 
-last_edit_time = {}   # chat_id -> timestamp последнего успешного редактирования
-pending_edit = {}     # chat_id -> asyncio.Task для отложенного редактирования
-
 async def safe_edit(message: Message, text: str, reply_markup: InlineKeyboardMarkup = None):
-    chat_id = message.chat.id
-    now = time.time()
-
-    # Отменяем предыдущую запланированную задачу, если есть
-    if chat_id in pending_edit and not pending_edit[chat_id].done():
-        pending_edit[chat_id].cancel()
-
-    # Определяем, сколько нужно подождать, чтобы не слать запросы чаще 0.5 секунды
-    last = last_edit_time.get(chat_id, 0)
-    delay = 0.5 - (now - last)
-    if delay > 0:
-        # Если прошло мало времени, планируем редактирование через delay
-        async def delayed_edit():
-            await asyncio.sleep(delay)
-            await _edit()
-        pending_edit[chat_id] = asyncio.create_task(delayed_edit())
-        return
-    else:
-        # Иначе редактируем сразу
-        await _edit()
-
-    async def _edit():
-        try:
-            await message.edit_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-            last_edit_time[chat_id] = time.time()
-        except TelegramRetryAfter as e:
-            # При flood control ждём указанное время и повторяем
-            await asyncio.sleep(e.retry_after)
-            await _edit()
-        except TelegramBadRequest as e:
-            if "message is not modified" not in str(e):
-                raise
+    try:
+        await message.edit_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+    except TelegramRetryAfter as e:
+        await asyncio.sleep(e.retry_after)
+        await safe_edit(message, text, reply_markup)
+    except TelegramBadRequest as e:
+        if "message is not modified" not in str(e):
+            raise
 
 async def safe_send_message(message: Message, text: str, reply_markup=None, parse_mode=ParseMode.HTML):
     try:
@@ -2750,7 +2723,6 @@ async def menu_hunt(query: CallbackQuery, callback_data: MenuCB):
 
     await safe_edit(query.message, text, reply_markup=b.as_markup())
 
-
 @dp.callback_query(HuntCB.filter())
 async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMContext):
     player = await get_player(query.from_user.id)
@@ -2763,7 +2735,7 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
         user_locks[user_id] = lock
 
     if lock.locked():
-        await query.answer("⏳ Телега размышляет, дай ей секунду... или минуту...")
+        await query.answer("⏳ Тыкай реже, иначе телега заблочит доступ к боту на время")
         return
 
     async with lock:
