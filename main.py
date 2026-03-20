@@ -1,3 +1,4 @@
+import aiohttp
 import asyncio
 import json
 import time
@@ -2256,6 +2257,56 @@ async def cmd_leaderboard(message: Message):
     else:
         text += "Вы еще не начинали играть?\n\nНапишите /start в @InfinitRPGbot"
     await safe_send_message(message, text)
+
+@dp.message(Command("restore_database"))
+async def cmd_restore_database(message: Message):
+    # Проверяем, что пользователь – разработчик
+    if message.from_user.id != 812357068:
+        await message.answer("⛔ Эта команда доступна только разработчику.")
+        return
+
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2:
+        await message.answer("Использование: /restore_database <URL>")
+        return
+
+    url = args[1].strip()
+    if not url.startswith(('http://', 'https://')):
+        await message.answer("❌ Некорректный URL. Должен начинаться с http:// или https://")
+        return
+
+    await message.answer("⏳ Загружаю базу данных...")
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status != 200:
+                    await message.answer(f"❌ Ошибка загрузки: код {response.status}")
+                    return
+                content = await response.text()
+    except Exception as e:
+        await message.answer(f"❌ Ошибка сети: {e}")
+        return
+
+    # Пытаемся распарсить JSON
+    try:
+        new_db = json.loads(content)
+    except json.JSONDecodeError as e:
+        await message.answer(f"❌ Ошибка парсинга JSON: {e}")
+        return
+
+    # Проверяем структуру
+    if not isinstance(new_db, dict) or "players" not in new_db:
+        await message.answer("❌ Неверный формат базы: отсутствует ключ 'players'")
+        return
+
+    # Заменяем глобальную базу
+    async with db_lock:
+        global db
+        db = new_db
+        _save_db_unlocked()  # сохраняем на диск
+
+        await message.answer("✅ База данных успешно восстановлена!")
 
 @dp.message(Command("profile"))
 async def cmd_profile(message: Message):
