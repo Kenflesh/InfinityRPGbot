@@ -42,7 +42,6 @@ leaderboard_cache = {
     'full_sorted': [],   # список кортежей (uid, name, username, difficulty)
     'top_25': ""
 }
-user_cooldown = {}  # user_id -> timestamp окончания блокировки
 
 #Константы
 KILLS_TO_UNLOCK_NEXT = 25
@@ -2732,17 +2731,15 @@ async def process_hunt(query: CallbackQuery, callback_data: HuntCB, state: FSMCo
     player = await get_player(query.from_user.id)
     act = callback_data.action
 
-    # Cooldown для частых действий
     user_id = query.from_user.id
-    now = time.time()
-    if user_id in user_cooldown and now < user_cooldown[user_id]:
-        remaining = int(user_cooldown[user_id] - now)
-        await query.answer(f"Подождите {remaining} сек", show_alert=False)
-        return
+    lock = user_locks.get(user_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        user_locks[user_id] = lock
 
-    # Устанавливаем блокировку на 1 секунду (только для действий, которые могут быть частыми)
-    if act in ("inc", "dec", "set", "start"):
-        user_cooldown[user_id] = now + 1
+    if lock.locked():
+        await query.answer("⏳ Телега размышляет, дай ей секунду... или минуту...")
+        return
 
     async with lock:
         if act == "dec":
