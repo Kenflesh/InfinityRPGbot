@@ -2071,11 +2071,9 @@ async def safe_edit(message: Message, text: str, reply_markup: InlineKeyboardMar
     chat_id = message.chat.id
     now = time.time()
 
-    # Дебаунс – если редактировали менее 1 секунды назад, пропускаем
+    # Дебаунс – если редактировали менее 1 секунды назад, просто игнорируем
     if chat_id in last_edit_time and now - last_edit_time[chat_id] < 1.0:
-        # Можно также отправить всплывающее уведомление:
-        await message.answer("⏳ Слишком часто! Подождите секунду.", show_alert=False)
-        return
+        return  # ничего не делаем, не отправляем сообщение
 
     try:
         await message.edit_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
