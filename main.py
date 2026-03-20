@@ -2065,10 +2065,23 @@ def training_complete_kbd(stat: str):
     builder.adjust(1)  # кнопки в столбик (можно изменить на 2, если нужно)
     return builder.as_markup()
 
+last_edit_time = {}  # chat_id -> timestamp
+
 async def safe_edit(message: Message, text: str, reply_markup: InlineKeyboardMarkup = None):
+    chat_id = message.chat.id
+    now = time.time()
+
+    # Дебаунс – если редактировали менее 1 секунды назад, пропускаем
+    if chat_id in last_edit_time and now - last_edit_time[chat_id] < 1.0:
+        # Можно также отправить всплывающее уведомление:
+        await message.answer("⏳ Слишком часто! Подождите секунду.", show_alert=False)
+        return
+
     try:
         await message.edit_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+        last_edit_time[chat_id] = now  # запоминаем время успешного редактирования
     except TelegramRetryAfter as e:
+        # Если всё же получили flood – ждём и повторяем (запасной вариант)
         await asyncio.sleep(e.retry_after)
         await safe_edit(message, text, reply_markup)
     except TelegramBadRequest as e:
