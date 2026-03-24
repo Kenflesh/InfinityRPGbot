@@ -1868,22 +1868,45 @@ def simulate_combat_realtime(player, enemy):
                             if absorbed > 0:
                                 msg += f" (поглощено {absorbed:.1f})"
 
+                            # Вампиризм и шипы (расчёт суммарного эффекта)
+                            ls = 0.0
+                            th = 0.0
+                            absorbed_th = 0.0
+
                             if phys_dmg > 0 and p_stats["lifesteal"] > 0:
                                 ls = phys_dmg * (p_stats["lifesteal"] / 100.0)
-                                p_stats["hp"] = min(p_stats["max_hp"], p_stats["hp"] + ls)
-                                msg += f" 🩸 +{fmt_float(ls,4)} HP"
+
                             if phys_dmg > 0 and e_stats["thorns"] > 0:
                                 th = phys_dmg * (e_stats["thorns"] / 100.0)
-                                absorbed_th = 0.0
                                 if current_shield > 0:
                                     absorbed_th = min(th, current_shield)
                                     current_shield -= absorbed_th
                                     th -= absorbed_th
+
+                            delta_hp = ls - th
+                            if delta_hp > 0:
+                                new_hp = min(p_stats["max_hp"], p_stats["hp"] + delta_hp)
+                                delta_hp = new_hp - p_stats["hp"]
+                                p_stats["hp"] = new_hp
+                                if ls > 0:
+                                    msg += f" 🩸 +{fmt_float(ls,4)} HP"
                                 if th > 0:
-                                    p_stats["hp"] -= th
                                     msg += f" 🌵 -{fmt_float(th, 4)} HP"
-                                if absorbed_th > 0:
-                                    msg += f" (поглощено щитом {fmt_float(absorbed_th, 4)})"
+                            elif delta_hp < 0:
+                                p_stats["hp"] = p_stats["hp"] + delta_hp  # delta_hp отрицательное
+                                if ls > 0:
+                                    msg += f" 🩸 +{fmt_float(ls,4)} HP"
+                                if th > 0:
+                                    msg += f" 🌵 -{fmt_float(th, 4)} HP"
+                            else:
+                                if ls > 0:
+                                    msg += f" 🩸 +{fmt_float(ls,4)} HP"
+                                if th > 0:
+                                    msg += f" 🌵 -{fmt_float(th, 4)} HP"
+
+                            if absorbed_th > 0:
+                                msg += f" (поглощено щитом {fmt_float(absorbed_th, 4)})"
+
                             if magic_dmg > 0 and p_stats["magic_shield_drain"] > 0:
                                 drain = magic_dmg * (p_stats["magic_shield_drain"] / 100.0)
                                 current_shield = min(current_shield + drain, p_stats["max_hp"] * 0.5)
