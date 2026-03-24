@@ -1682,11 +1682,11 @@ def simulate_combat_realtime(player, enemy):
 
         elif eff_type == "shield":
             if is_player_caster:
-                current_shield = min(current_shield + base, p_stats["max_hp"]*0.5)
+                current_shield = current_shield + base
                 msg += f"🪬 Вы получили +{base:.1f} щита"
                 msg += " " + status_str(p_stats, current_shield, True)
             else:
-                enemy_shield = min(enemy_shield + base, e_stats["max_hp"]*0.5)
+                enemy_shield = enemy_shield + base
                 msg += f"🪬 Враг получил +{base:.1f} щита"
                 msg += " " + status_str(e_stats, enemy_shield, False)
 
